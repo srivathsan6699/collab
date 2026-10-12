@@ -1,0 +1,9 @@
+# agent tooling (symlinked skills break the Railway build copy)
+.agents
+.claude
+
+# local-only files
+node_modules
+.next
+.env*
+.git
