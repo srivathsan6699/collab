@@ -5,7 +5,13 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 import { db } from "@/lib/db"
-import { bots, insertBotSchema, type InsertBot } from "@/lib/db/schema"
+import {
+  bots,
+  chatMembers,
+  chats,
+  insertBotSchema,
+  type InsertBot,
+} from "@/lib/db/schema"
 
 type CreateBotResult =
   | { ok: true; id: string }
@@ -30,10 +36,19 @@ export async function createBot(input: InsertBot): Promise<CreateBotResult> {
   }
 
   const { instructions, ...values } = parsed.data
-  const [bot] = await db
-    .insert(bots)
-    .values({ ...values, instructions: instructions || null, userId })
-    .returning({ id: bots.id })
+  // node-postgres has no db.batch(), so a transaction keeps the three writes atomic
+  const bot = await db.transaction(async (tx) => {
+    const [bot] = await tx
+      .insert(bots)
+      .values({ ...values, instructions: instructions || null, userId })
+      .returning({ id: bots.id })
+    const [chat] = await tx
+      .insert(chats)
+      .values({ userId, kind: "direct" })
+      .returning({ id: chats.id })
+    await tx.insert(chatMembers).values({ chatId: chat.id, botId: bot.id })
+    return bot
+  })
 
   revalidatePath("/")
   return { ok: true, id: bot.id }
