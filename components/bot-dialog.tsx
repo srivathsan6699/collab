@@ -65,9 +65,9 @@ function BotDialog({ trigger }: { trigger: React.ReactElement }) {
       <DialogTrigger render={trigger} />
       <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>New bot</DialogTitle>
+          <DialogTitle>Build a bot</DialogTitle>
           <DialogDescription>
-            Give it a face, a name, and a job to do.
+            Pick a face, a name, and a job to do.
           </DialogDescription>
         </DialogHeader>
         {/* Mounted only while open, so each open starts with a fresh form */}
@@ -83,6 +83,7 @@ function BotForm({ onCreated }: { onCreated: () => void }) {
     defaultValues: { name: "", avatar: nanoid(), job: "", instructions: "" },
   })
   const avatar = useWatch({ control: form.control, name: "avatar" })
+  const name = useWatch({ control: form.control, name: "name" }).trim()
   const { isSubmitting } = form.formState
 
   async function onSubmit(values: InsertBot) {
@@ -127,7 +128,7 @@ function BotForm({ onCreated }: { onCreated: () => void }) {
           </div>
 
           <Field orientation="horizontal">
-            <ChatAvatar seed={avatar} className="size-12 rounded-none" />
+            <ChatAvatar seed={avatar} className="size-12" />
             <FieldContent>
               <FieldTitle>Face</FieldTitle>
               <FieldDescription>
@@ -214,7 +215,7 @@ function BotForm({ onCreated }: { onCreated: () => void }) {
         <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
         <Button type="submit" form="bot-form" disabled={isSubmitting}>
           {isSubmitting && <Spinner data-icon="inline-start" />}
-          Create bot
+          {name ? `Bring ${name} to life` : "Create bot"}
         </Button>
       </DialogFooter>
     </>

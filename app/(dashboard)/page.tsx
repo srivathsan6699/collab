@@ -25,8 +25,8 @@ export default async function Page() {
           </EmptyMedia>
           <EmptyTitle>Meet your first bot</EmptyTitle>
           <EmptyDescription>
-            Every bot gets its own personality, memory, and face. Spin one up
-            and start the conversation.
+            Not just another chatbot. Yours has a face, a past and a point of
+            view.
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
@@ -34,7 +34,7 @@ export default async function Page() {
             trigger={
               <Button variant="secondary">
                 <PlusIcon data-icon="inline-start" />
-                Create a new bot
+                Bring one to life
               </Button>
             }
           />
