@@ -57,12 +57,22 @@ const presets = [
   },
 ]
 
-function BotDialog({ trigger }: { trigger: React.ReactElement }) {
-  const [open, setOpen] = React.useState(false)
+function BotDialog({
+  trigger,
+  open: openProp,
+  onOpenChange,
+}: {
+  trigger?: React.ReactElement
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}) {
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false)
+  const open = openProp ?? uncontrolledOpen
+  const setOpen = onOpenChange ?? setUncontrolledOpen
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={trigger} />
+    <Dialog open={open} onOpenChange={(open) => setOpen(open)}>
+      {trigger && <DialogTrigger render={trigger} />}
       <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Build a bot</DialogTitle>
