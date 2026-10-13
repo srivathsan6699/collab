@@ -33,6 +33,13 @@ import type { ChatListItem } from "@/queries/bot"
 export function AppSidebar({ chats }: { chats: ChatListItem[] }) {
   const [botDialogOpen, setBotDialogOpen] = React.useState(false)
   const pathname = usePathname()
+  const contentRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    contentRef.current
+      ?.querySelector("[data-active]")
+      ?.scrollIntoView({ block: "nearest" })
+  }, [pathname])
 
   return (
     <Sidebar collapsible="icon">
@@ -59,7 +66,7 @@ export function AppSidebar({ chats }: { chats: ChatListItem[] }) {
         <ChatSearch chats={chats} />
         <BotDialog open={botDialogOpen} onOpenChange={setBotDialogOpen} />
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent ref={contentRef}>
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>

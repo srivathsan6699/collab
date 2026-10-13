@@ -7,7 +7,7 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core"
-import { createInsertSchema } from "drizzle-zod"
+import { createInsertSchema, createUpdateSchema } from "drizzle-zod"
 import { nanoid } from "nanoid"
 import type { z } from "zod"
 
@@ -43,6 +43,18 @@ export const insertBotSchema = createInsertSchema(bots, {
   .required({ avatar: true })
 
 export type InsertBot = z.infer<typeof insertBotSchema>
+
+// The same fields when editing a bot; the form always sends all of them
+export const updateBotSchema = createUpdateSchema(bots, {
+  name: (s) => s.trim().min(1, "Give your bot a name.").max(50),
+  avatar: (s) => s.min(1),
+  job: (s) => s.trim().min(1, "Tell your bot what its job is.").max(100),
+  instructions: (s) => s.trim().max(2000),
+})
+  .pick({ name: true, avatar: true, job: true, instructions: true })
+  .required()
+
+export type UpdateBot = z.infer<typeof updateBotSchema>
 
 export const chatKind = pgEnum("chat_kind", ["direct", "group"])
 
