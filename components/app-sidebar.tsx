@@ -26,6 +26,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
 } from "@/components/ui/sidebar"
 import type { ChatListItem } from "@/queries/bot"
 
@@ -34,7 +35,7 @@ export function AppSidebar({ chats }: { chats: ChatListItem[] }) {
   const pathname = usePathname()
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarHeader>
         <div className="flex justify-end">
           <DropdownMenu>
@@ -66,7 +67,8 @@ export function AppSidebar({ chats }: { chats: ChatListItem[] }) {
                 <SidebarMenuItem key={chat.id}>
                   <SidebarMenuButton
                     size="lg"
-                    className="h-auto gap-3"
+                    className="h-auto gap-3 group-data-[collapsible=icon]:p-1!"
+                    tooltip={chat.name}
                     isActive={pathname === `/chats/${chat.id}`}
                     render={<Link href={`/chats/${chat.id}`} />}
                   >
@@ -103,6 +105,7 @@ export function AppSidebar({ chats }: { chats: ChatListItem[] }) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   )
 }

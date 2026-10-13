@@ -39,12 +39,22 @@ function ChatSearch({ chats }: { chats: ChatListItem[] }) {
       {/* Styled like Input, but keeps the ghost button's hover */}
       <Button
         variant="ghost"
-        className="h-8 w-full justify-start rounded-lg border border-input bg-transparent px-2.5 font-normal text-muted-foreground dark:bg-input/30"
+        className="h-8 w-full justify-start rounded-lg border border-input bg-transparent px-2.5 font-normal text-muted-foreground group-data-[collapsible=icon]:hidden dark:bg-input/30"
         onClick={() => setOpen(true)}
       >
         <SearchIcon data-icon="inline-start" />
         Search
         <Kbd className="ml-auto">⌘K</Kbd>
+      </Button>
+      {/* Stands in for the search field while the sidebar is collapsed */}
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Search"
+        className="hidden group-data-[collapsible=icon]:inline-flex"
+        onClick={() => setOpen(true)}
+      >
+        <SearchIcon />
       </Button>
       <CommandDialog
         open={open}

@@ -6,7 +6,10 @@ import type { ChatListItem } from "@/queries/bot"
 function ChatPreview({ chat }: { chat: ChatListItem }) {
   return (
     <>
-      <ChatAvatar seed={chat.avatar} className="size-10" />
+      <ChatAvatar
+        seed={chat.avatar}
+        className="size-10 group-data-[collapsible=icon]:size-6"
+      />
       <div className="grid min-w-0 flex-1 gap-0.5">
         <div className="flex items-baseline justify-between gap-2">
           <span className="truncate font-medium">{chat.name}</span>
