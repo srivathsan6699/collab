@@ -10,8 +10,13 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Git
 
--Never create branches, worktrees, or commits automatically. Only do so when the user explicitly asks for that specific action in the current request.
--Leave changes uncommitted in the working tree on the current branch and let the user decide when and how to commit
+All work happens on `main`, in this checkout. There are no feature branches.
+
+-Never create, switch, rename, or delete branches. No `git branch <name>`, `git checkout -b`, `git switch`, `git checkout <branch>`, or `git rebase` onto another branch, unless the user explicitly asks for that exact action in the current request. A request to commit, push, or open a PR is not a request to branch.
+-Never create or enter worktrees. No `git worktree add`, `EnterWorktree`, or subagents launched with `isolation: "worktree"`.
+-Before any git write (staging, committing), confirm `git branch --show-current` prints `main`. If it does not, stop and ask the user instead of switching.
+-Never commit automatically. Commit only when the user explicitly asks in the current request, and commit directly on `main`.
+-Otherwise leave changes uncommitted in the working tree on `main` and let the user decide when and how to commit.
 
 ## Database
 
