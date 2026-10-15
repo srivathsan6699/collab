@@ -2,7 +2,7 @@ import type { Sandbox } from "@daytona/sdk"
 import { tool } from "ai"
 import { z } from "zod"
 
-import { daytona } from "@/lib/daytona/client"
+import { daytona, startDesktop } from "@/lib/daytona/client"
 import { db } from "@/lib/db/client"
 
 const HOME = "/home/daytona"
@@ -26,12 +26,6 @@ async function connect(chatId: string) {
   const sandbox = await daytona.get(member.bot.sandboxId)
   if (sandbox.state !== "started") await sandbox.start()
   return sandbox
-}
-
-// The desktop (Xvfb, xfce4, VNC) isn't running until something needs it
-async function startDesktop(sandbox: Sandbox) {
-  const { running } = await sandbox.computerUse.getProcessStatus("xfce4")
-  if (!running) await sandbox.computerUse.start()
 }
 
 async function captureScreen(sandbox: Sandbox) {

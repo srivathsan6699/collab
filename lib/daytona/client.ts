@@ -1,4 +1,4 @@
-import { Daytona } from "@daytona/sdk"
+import { Daytona, type Sandbox } from "@daytona/sdk"
 
 // Next.js and `trigger dev` both load .env.local into process.env. The SDK
 // refuses to pick an endpoint that is set in both places, so pass ours
@@ -8,3 +8,9 @@ export const daytona = new Daytona({
   apiKey: process.env.DAYTONA_API_KEY,
   apiUrl: process.env.DAYTONA_API_URL,
 })
+
+// The desktop (Xvfb, xfce4, VNC) isn't running until something needs it
+export async function startDesktop(sandbox: Sandbox) {
+  const { running } = await sandbox.computerUse.getProcessStatus("xfce4")
+  if (!running) await sandbox.computerUse.start()
+}

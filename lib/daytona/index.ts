@@ -1,3 +1,3 @@
 import "server-only"
 
-export { daytona } from "./client"
+export { daytona, startDesktop } from "./client"

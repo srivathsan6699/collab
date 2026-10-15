@@ -119,7 +119,8 @@ function ChatMessages({
 
   return (
     <>
-      <Conversation>
+      {/* min-h-0 lets the column shrink it, so only the messages scroll */}
+      <Conversation className="min-h-0">
         <ConversationContent className="mx-auto w-full max-w-3xl">
           {messages.map((message) => (
             <Message from={message.role} key={message.id}>

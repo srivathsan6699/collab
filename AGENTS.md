@@ -90,3 +90,9 @@ Dart or C# API attributed to DiceBear is invented rather than outdated.
 
 This project has Trigger.dev agent skills installed in `.agents/skills/`. Before writing or changing Trigger.dev code (background tasks, scheduled tasks, realtime, or chat.agent AI agents), load the most relevant skill: `trigger-authoring-chat-agent`, `trigger-authoring-tasks`, `trigger-cost-savings`, `trigger-chat-agent-advanced`, `trigger-getting-started`, `trigger-realtime-and-frontend`.
 <!-- TRIGGER.DEV SKILLS END -->
+
+## Deployment
+
+The Next.js app runs on Railway (project `collab`, service `collab`, environment `production`) and deploys from pushes to `main`.
+
+-Railway's variables mirror `.env.local`, with one exception: `TRIGGER_SECRET_KEY`. `.env.local` holds the Trigger.dev development key (`tr_dev_…`); Railway needs the production key (`tr_prod_…`) from the Trigger.dev dashboard. Never copy the local `TRIGGER_SECRET_KEY` to Railway. When syncing variables, copy every other one from `.env.local` and leave Railway's `TRIGGER_SECRET_KEY` as it is.
