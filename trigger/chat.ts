@@ -9,6 +9,7 @@ import {
 } from "ai"
 import { z } from "zod"
 
+import { MEMORY_PATH } from "@/lib/daytona/client"
 import { db } from "@/lib/db/client"
 import { handoffTools, type HandoffTools } from "./handoff"
 import { computerTools, type ComputerTools } from "./tools"
@@ -39,18 +40,22 @@ type Turn = {
   group?: { name: string; others: Bot[]; handedOffBy?: Bot }
 }
 
-const clientDataSchema = z.object({
-  // The bot picked in the composer
-  botId: z.string().optional(),
-  // The bot whose handoff the person accepted, sent with that one request
-  handedOffBy: z.string().optional(),
-})
+// Optional as a whole: a run started without client data falls back to the
+// chat's first bot instead of failing validation
+const clientDataSchema = z
+  .object({
+    // The bot picked in the composer
+    botId: z.string().optional(),
+    // The bot whose handoff the person accepted, sent with that one request
+    handedOffBy: z.string().optional(),
+  })
+  .optional()
 
 // The bot answering this turn: the one picked in the composer, else the
 // chat's first. The ids come from the browser, so they must be members
 async function loadTurn(
   chatId: string,
-  { botId, handedOffBy }: z.infer<typeof clientDataSchema> = {}
+  { botId, handedOffBy }: NonNullable<z.infer<typeof clientDataSchema>> = {}
 ): Promise<Turn> {
   const row = await db.query.chats.findFirst({
     where: (chats, { eq }) => eq(chats.id, chatId),
@@ -93,6 +98,13 @@ You exist to do this job well for the person you're talking to. Stay focused on 
 # Your environment
 You have your own sandbox: a dedicated, isolated Linux machine that belongs to you alone and was created along with you. Its home directory is /home/daytona. Files written there persist across conversations for as long as you exist, and the sandbox is deleted when you are. It may be stopped while idle and started again later.
 
+# Your memory
+You only see the conversation you're in, not your other chats. What carries over between them is your memory: ${MEMORY_PATH}, a Markdown file in your sandbox that you keep yourself. It's how something the person told you in your private chat reaches you in a group chat, and the other way around.
+
+- Write to it when you learn something worth knowing later: facts about the person and their work, their preferences, decisions you made together, and anything they ask you to remember. Keep it to short bullets under topic headings, and update or remove an entry when it changes rather than adding a contradicting one. writeFile replaces the whole file, so read it first and write back everything you're keeping.
+- Read it before you answer when the person refers to something that isn't in this conversation ("like I told you", "what did we decide?"), asks what you know or remember, or when their preferences would change your answer. If it isn't there either, say you don't remember instead of guessing.
+- Don't write down secrets like passwords or keys, and don't narrate your memory: just use what's in it. If the file is missing, create it.
+
 # Your tools
 - Files and commands: bash runs a shell command; readFile, writeFile and listFiles work with files directly. Use these for anything a command or file can do; they're faster and more reliable than the desktop.
 - The desktop: viewScreen takes a screenshot for you to look at; mouseClick, mouseMove, mouseDrag and mouseScroll drive the mouse; keyboardType types text and keyboardPress presses keys and shortcuts. Reach for these when a task needs a graphical app, like a browser.
@@ -111,7 +123,9 @@ function groupPrompt(group: NonNullable<Turn["group"]>) {
 # This group chat
 You're in a group chat called "${group.name}" with the person and other bots they created. Each bot has its own job and its own sandbox. The person picks which bot answers each message, and they picked you for this one.
 
-Earlier replies in this conversation may have been written by other bots, not you. Don't take credit for their work or claim to remember doing it. Their sandboxes are separate from yours, so you can't see their files or screens; if you need something they made, ask the person for it.
+Earlier replies in this conversation may have been written by other bots, not you. Don't take credit for their work or claim to remember doing it. Their sandboxes are separate from yours, so you can't see their files, screens or memories; if you need something they made, ask the person for it.
+
+What the person told you in your private chat isn't in this conversation, but it may be in your memory. When they ask about it here, read your memory before you answer.
 
 There's no desktop panel in a group chat, so the person only sees your screen when you call showScreen.
 

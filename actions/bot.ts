@@ -7,7 +7,7 @@ import { and, eq, inArray } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { z } from "zod"
 
-import { daytona } from "@/lib/daytona"
+import { daytona, MEMORY_PATH } from "@/lib/daytona"
 import { db } from "@/lib/db"
 import {
   bots,
@@ -49,6 +49,14 @@ export async function createBot(input: InsertBot): Promise<CreateBotResult> {
     sandbox = await daytona.create({ labels: { botId, userId } })
   } catch (error) {
     console.error("Failed to create sandbox for bot", error)
+    return { ok: false, error: "Couldn't set up your bot. Try again." }
+  }
+
+  try {
+    await sandbox.fs.uploadFile(Buffer.from(""), MEMORY_PATH)
+  } catch (error) {
+    console.error(`Failed to create memory in sandbox ${sandbox.id}`, error)
+    await daytona.delete(sandbox).catch(console.error)
     return { ok: false, error: "Couldn't set up your bot. Try again." }
   }
 
@@ -122,8 +130,7 @@ export async function updateBot(
 }
 
 type DeleteBotResult =
-  | { ok: true; chatIds: string[] }
-  | { ok: false; error: string }
+  { ok: true; chatIds: string[] } | { ok: false; error: string }
 
 export async function deleteBot(botId: string): Promise<DeleteBotResult> {
   const { isAuthenticated, userId } = await auth()

@@ -9,6 +9,10 @@ export const daytona = new Daytona({
   apiUrl: process.env.DAYTONA_API_URL,
 })
 
+// The bot's memory: a Markdown file it reads and writes to remember things
+// across all the chats it's in. Created empty with the sandbox
+export const MEMORY_PATH = "/home/daytona/MEMORY.md"
+
 // The desktop (Xvfb, xfce4, VNC) isn't running until something needs it
 export async function startDesktop(sandbox: Sandbox) {
   const { running } = await sandbox.computerUse.getProcessStatus("xfce4")

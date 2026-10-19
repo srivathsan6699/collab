@@ -1,3 +1,3 @@
 import "server-only"
 
-export { daytona, startDesktop } from "./client"
+export { daytona, MEMORY_PATH, startDesktop } from "./client"
