@@ -64,6 +64,7 @@ import {
 } from "@/components/ai-elements/prompt-input"
 import { Terminal } from "@/components/ai-elements/terminal"
 import { ChatAvatar } from "@/components/chat-avatar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Tool,
@@ -147,7 +148,8 @@ function ChatMessages({
 
   function handleSubmit({ text }: PromptInputMessage) {
     if (!text.trim()) return
-    sendMessage({ text })
+    // The message remembers which bot it was for, so a group chat can show it
+    sendMessage({ text, metadata: { botId } })
   }
 
   // Picks the bot a reply handed off to and has it answer in the reply's
@@ -167,11 +169,11 @@ function ChatMessages({
       <Conversation className="min-h-0">
         <ConversationContent className="mx-auto w-full max-w-3xl">
           {messages.map((message, index) => {
-            // In a group chat, a reply shows the face of the bot that wrote it
-            const author =
-              message.role === "assistant"
-                ? bots?.find((bot) => bot.id === message.metadata?.botId)
-                : undefined
+            // In a group chat, a reply shows the face of the bot that wrote
+            // it, and a message from the person shows the bot it was for
+            const bot = bots?.find((bot) => bot.id === message.metadata?.botId)
+            const author = message.role === "assistant" ? bot : undefined
+            const recipient = message.role === "user" ? bot : undefined
             // Only the latest reply can be answered again, once it's done
             const onHandOff =
               index === messages.length - 1 && status === "ready"
@@ -188,14 +190,38 @@ function ChatMessages({
                   <ChatAvatar seed={author.avatar} className="size-6" />
                 )}
                 <MessageContent>
-                  {message.parts.map((part, i) => (
-                    <ChatMessagePart
-                      key={`${message.id}-${i}`}
-                      part={part}
-                      bots={bots}
-                      onHandOff={onHandOff}
-                    />
-                  ))}
+                  {recipient ? (
+                    // The badge and the first paragraph share one line, like a
+                    // tag. Both are inline so the bubble's fit-content width
+                    // counts them together; a float wouldn't be counted
+                    <div className="[&>div]:inline [&>div>p:first-child]:inline">
+                      <Badge
+                        variant="outline"
+                        className="mr-1.5 max-w-40 bg-background pl-0.5 align-top"
+                      >
+                        <ChatAvatar
+                          seed={recipient.avatar}
+                          className="size-4"
+                        />
+                        <span className="truncate">{recipient.name}</span>
+                      </Badge>
+                      {message.parts.map((part, i) => (
+                        <ChatMessagePart
+                          key={`${message.id}-${i}`}
+                          part={part}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    message.parts.map((part, i) => (
+                      <ChatMessagePart
+                        key={`${message.id}-${i}`}
+                        part={part}
+                        bots={bots}
+                        onHandOff={onHandOff}
+                      />
+                    ))
+                  )}
                 </MessageContent>
               </Message>
             )
