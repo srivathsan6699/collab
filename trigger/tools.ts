@@ -15,29 +15,15 @@ function truncate(text: string) {
     : text
 }
 
-// The bot answering in this chat: the one asked for if it's a member, else
-// the first to join. botId comes from the browser, so membership is checked
-export async function findMember(chatId: string, botId?: string) {
-  const member = await db.query.chatMembers.findFirst({
-    where: (m, { and, eq }) =>
-      botId
-        ? and(eq(m.chatId, chatId), eq(m.botId, botId))
-        : eq(m.chatId, chatId),
-    orderBy: (m, { asc }) => asc(m.joinedAt),
-    with: {
-      bot: {
-        columns: { name: true, job: true, instructions: true, sandboxId: true },
-      },
-    },
-  })
-  if (!member) throw new Error(`No bot ${botId ?? ""} in chat ${chatId}`)
-  return member
-}
-
-// The sandbox of the bot answering in this chat, started if it was stopped
+// The sandbox of the bot answering this turn, started if it was stopped
 // while idle
-async function connect(chatId: string, botId?: string) {
-  const { bot } = await findMember(chatId, botId)
+async function connect(botId: string) {
+  const bot = await db.query.bots.findFirst({
+    where: (bots, { eq }) => eq(bots.id, botId),
+    columns: { sandboxId: true },
+  })
+  if (!bot) throw new Error(`No bot ${botId}`)
+
   const sandbox = await daytona.get(bot.sandboxId)
   if (sandbox.state !== "started") await sandbox.start()
   return sandbox
@@ -91,10 +77,10 @@ const point = {
 
 // Tools that drive the answering bot's sandbox. The sandbox is looked up on
 // the first tool call, so turns that use no tools never touch Daytona
-export function computerTools(chatId: string, botId?: string) {
+export function computerTools(botId: string) {
   let pending: Promise<Sandbox> | undefined
   const sandbox = () => {
-    pending ??= connect(chatId, botId).catch((error) => {
+    pending ??= connect(botId).catch((error) => {
       pending = undefined // Let the next call try again
       throw error
     })

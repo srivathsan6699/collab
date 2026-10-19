@@ -9,6 +9,7 @@ import {
 } from "@trigger.dev/sdk/chat/react"
 import {
   ArrowDownUpIcon,
+  ArrowRightLeftIcon,
   CircleAlertIcon,
   EyeIcon,
   FileIcon,
@@ -26,6 +27,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import * as React from "react"
+import { cn } from "cn"
 import type { BundledLanguage } from "shiki"
 
 import {
@@ -62,6 +64,7 @@ import {
 } from "@/components/ai-elements/prompt-input"
 import { Terminal } from "@/components/ai-elements/terminal"
 import { ChatAvatar } from "@/components/chat-avatar"
+import { Button } from "@/components/ui/button"
 import {
   Tool,
   ToolContent,
@@ -134,16 +137,28 @@ function ChatMessages({
   botId?: string
   onBotChange: (botId: string) => void
 }) {
-  const { messages, sendMessage, status, stop } = useChat<ChatMessage>({
-    id: chatId,
-    // The transcript holds what the agent streamed, so it has the agent's parts
-    messages: initialMessages as ChatMessage[],
-    transport,
-  })
+  const { messages, sendMessage, regenerate, status, stop } =
+    useChat<ChatMessage>({
+      id: chatId,
+      // The transcript holds what the agent streamed, so it has the agent's parts
+      messages: initialMessages as ChatMessage[],
+      transport,
+    })
 
   function handleSubmit({ text }: PromptInputMessage) {
     if (!text.trim()) return
     sendMessage({ text })
+  }
+
+  // Picks the bot a reply handed off to and has it answer in the reply's
+  // place. The transport's clientData only catches up on the next render,
+  // so the bot goes with the request too, along with who handed it over
+  function handOff(message: ChatMessage, botId: string) {
+    onBotChange(botId)
+    regenerate({
+      messageId: message.id,
+      metadata: { botId, handedOffBy: message.metadata?.botId },
+    })
   }
 
   return (
@@ -151,15 +166,40 @@ function ChatMessages({
       {/* min-h-0 lets the column shrink it, so only the messages scroll */}
       <Conversation className="min-h-0">
         <ConversationContent className="mx-auto w-full max-w-3xl">
-          {messages.map((message) => (
-            <Message from={message.role} key={message.id}>
-              <MessageContent>
-                {message.parts.map((part, i) => (
-                  <ChatMessagePart key={`${message.id}-${i}`} part={part} />
-                ))}
-              </MessageContent>
-            </Message>
-          ))}
+          {messages.map((message, index) => {
+            // In a group chat, a reply shows the face of the bot that wrote it
+            const author =
+              message.role === "assistant"
+                ? bots?.find((bot) => bot.id === message.metadata?.botId)
+                : undefined
+            // Only the latest reply can be answered again, once it's done
+            const onHandOff =
+              index === messages.length - 1 && status === "ready"
+                ? (botId: string) => handOff(message, botId)
+                : undefined
+
+            return (
+              <Message
+                from={message.role}
+                key={message.id}
+                className={cn(author && "flex-row items-start gap-3")}
+              >
+                {author && (
+                  <ChatAvatar seed={author.avatar} className="size-6" />
+                )}
+                <MessageContent>
+                  {message.parts.map((part, i) => (
+                    <ChatMessagePart
+                      key={`${message.id}-${i}`}
+                      part={part}
+                      bots={bots}
+                      onHandOff={onHandOff}
+                    />
+                  ))}
+                </MessageContent>
+              </Message>
+            )
+          })}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
@@ -228,7 +268,15 @@ function PickableBotLabel({ bot }: { bot: PickableBot }) {
   )
 }
 
-function ChatMessagePart({ part }: { part: ChatPart }) {
+function ChatMessagePart({
+  part,
+  bots,
+  onHandOff,
+}: {
+  part: ChatPart
+  bots?: PickableBot[]
+  onHandOff?: (botId: string) => void
+}) {
   switch (part.type) {
     case "text":
       return <MessageResponse>{part.text}</MessageResponse>
@@ -242,6 +290,8 @@ function ChatMessagePart({ part }: { part: ChatPart }) {
       return <ListFilesTool part={part} />
     case "tool-showScreen":
       return <ShowScreenTool part={part} />
+    case "tool-handoff":
+      return <HandoffTool part={part} bots={bots} onHandOff={onHandOff} />
     // The screenshot is for the bot's eyes only, so it's never rendered
     case "tool-viewScreen":
       return (
@@ -449,6 +499,41 @@ function ListFilesTool({ part }: { part: ToolPart<"listFiles"> }) {
         <ToolOutput errorText={part.errorText} output={undefined} />
       </ToolContent>
     </Tool>
+  )
+}
+
+function HandoffTool({
+  part,
+  bots,
+  onHandOff,
+}: {
+  part: ToolPart<"handoff">
+  bots?: PickableBot[]
+  onHandOff?: (botId: string) => void
+}) {
+  const bot = bots?.find((bot) => bot.id === part.input?.botId)
+  // Still streaming, failed, or handed to a bot that has since left
+  if (part.state !== "output-available" || !bot) {
+    return (
+      <ComputerStep icon={ArrowRightLeftIcon} label="Handing off" part={part} />
+    )
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-3 rounded-lg border p-3">
+      <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+        <ArrowRightLeftIcon className="size-4 shrink-0" />
+        <span className="shrink-0">Handed off to</span>
+        <ChatAvatar seed={bot.avatar} className="size-5" />
+        <span className="truncate font-medium text-foreground">{bot.name}</span>
+      </div>
+      {part.input?.reason && <p className="text-sm">{part.input.reason}</p>}
+      {onHandOff && (
+        <Button variant="outline" size="sm" onClick={() => onHandOff(bot.id)}>
+          Ask {bot.name}
+        </Button>
+      )}
+    </div>
   )
 }
 

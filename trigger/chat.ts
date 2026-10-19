@@ -1,19 +1,87 @@
 import { openai } from "@ai-sdk/openai"
+import { chat, defaultStorage } from "@trigger.dev/sdk/ai"
 import {
-  chat,
-  defaultStorage,
-  type InferChatUIMessageFromTools,
-} from "@trigger.dev/sdk/ai"
-import { isStepCount } from "ai"
+  hasToolCall,
+  isStepCount,
+  type InferUITools,
+  type UIDataTypes,
+  type UIMessage,
+} from "ai"
 import { z } from "zod"
 
-import { computerTools, findMember, type ComputerTools } from "./tools"
+import { db } from "@/lib/db/client"
+import { handoffTools, type HandoffTools } from "./handoff"
+import { computerTools, type ComputerTools } from "./tools"
 
-export type ChatUIMessage = InferChatUIMessageFromTools<ComputerTools>
+// Replies carry the bot that wrote them, so group chats can show its face
+export type ChatMessageMetadata = { botId?: string }
 
-type Bot = { name: string; job: string; instructions: string | null }
+// handoff is only offered in group chats
+type ChatTools = ComputerTools & Partial<HandoffTools>
 
-function systemPrompt(bot: Bot) {
+export type ChatUIMessage = UIMessage<
+  ChatMessageMetadata,
+  UIDataTypes,
+  InferUITools<ChatTools>
+>
+
+type Bot = {
+  id: string
+  name: string
+  job: string
+  instructions: string | null
+}
+
+type Turn = {
+  bot: Bot
+  // Set in a group chat: its name, the bots other than the one answering, and
+  // the bot that handed this message over, if one did
+  group?: { name: string; others: Bot[]; handedOffBy?: Bot }
+}
+
+const clientDataSchema = z.object({
+  // The bot picked in the composer
+  botId: z.string().optional(),
+  // The bot whose handoff the person accepted, sent with that one request
+  handedOffBy: z.string().optional(),
+})
+
+// The bot answering this turn: the one picked in the composer, else the
+// chat's first. The ids come from the browser, so they must be members
+async function loadTurn(
+  chatId: string,
+  { botId, handedOffBy }: z.infer<typeof clientDataSchema> = {}
+): Promise<Turn> {
+  const row = await db.query.chats.findFirst({
+    where: (chats, { eq }) => eq(chats.id, chatId),
+    columns: { kind: true, name: true },
+    with: {
+      members: {
+        orderBy: (members, { asc }) => asc(members.joinedAt),
+        with: {
+          bot: {
+            columns: { id: true, name: true, job: true, instructions: true },
+          },
+        },
+      },
+    },
+  })
+  const bots = row?.members.map((member) => member.bot) ?? []
+  const bot = botId ? bots.find((bot) => bot.id === botId) : bots[0]
+  if (!row || !bot) throw new Error(`No bot ${botId ?? ""} in chat ${chatId}`)
+
+  if (row.kind !== "group") return { bot }
+  return {
+    bot,
+    group: {
+      name: row.name ?? "Group chat",
+      others: bots.filter((other) => other.id !== bot.id),
+      handedOffBy: bots.find((other) => other.id === handedOffBy),
+    },
+  }
+}
+
+function systemPrompt({ bot, group }: Turn) {
   return `You are ${bot.name}, a bot that a person created to help them with one job.
 
 # Your job
@@ -25,10 +93,43 @@ You exist to do this job well for the person you're talking to. Stay focused on 
 # Your environment
 You have your own sandbox: a dedicated, isolated Linux machine that belongs to you alone and was created along with you. Its home directory is /home/daytona. Files written there persist across conversations for as long as you exist, and the sandbox is deleted when you are. It may be stopped while idle and started again later.
 
-# Using your computer
-Your sandbox has a desktop you can control. Use bash, readFile, writeFile and listFiles for anything a command or file can do; they're faster and more reliable than the desktop. Reach for the mouse and keyboard when a task needs a graphical app, like a browser.
+# Your tools
+- Files and commands: bash runs a shell command; readFile, writeFile and listFiles work with files directly. Use these for anything a command or file can do; they're faster and more reliable than the desktop.
+- The desktop: viewScreen takes a screenshot for you to look at; mouseClick, mouseMove, mouseDrag and mouseScroll drive the mouse; keyboardType types text and keyboardPress presses keys and shortcuts. Reach for these when a task needs a graphical app, like a browser.
+- Showing your screen: showScreen puts a screenshot in the chat for the person to see.${group?.others.length && !group.handedOffBy ? "\n- Handing off: handoff passes the person's message to another bot in this group chat. See below." : ""}
 
-When you work the desktop, look before you act: call viewScreen to see the screen, act on what you saw, then call viewScreen again to check the result before the next step. Coordinates are in screen pixels from the top-left corner. viewScreen is only for you; when the person wants to see the screen, call showScreen, which shows it to them in the chat.`
+When you work the desktop, look before you act: call viewScreen to see the screen, act on what you saw, then call viewScreen again to check the result before the next step. Coordinates are in screen pixels from the top-left corner. viewScreen is only for you; when the person wants to see the screen, call showScreen.${group ? groupPrompt(group) : ""}`
+}
+
+function groupPrompt(group: NonNullable<Turn["group"]>) {
+  const others = group.others
+    .map((bot) => `- ${bot.name} (id: ${bot.id}): ${bot.job}`)
+    .join("\n")
+
+  return `
+
+# This group chat
+You're in a group chat called "${group.name}" with the person and other bots they created. Each bot has its own job and its own sandbox. The person picks which bot answers each message, and they picked you for this one.
+
+Earlier replies in this conversation may have been written by other bots, not you. Don't take credit for their work or claim to remember doing it. Their sandboxes are separate from yours, so you can't see their files or screens; if you need something they made, ask the person for it.
+
+There's no desktop panel in a group chat, so the person only sees your screen when you call showScreen.
+
+${others ? `The other bots here:\n${others}` : "There are no other bots here right now."}${handoffPrompt(group)}`
+}
+
+function handoffPrompt(group: NonNullable<Turn["group"]>) {
+  if (group.handedOffBy) {
+    return `
+
+# Handed to you
+${group.handedOffBy.name} handed the person's latest message to you because it fits your job better, and the person agreed. Answer it yourself; it can't be handed off again.`
+  }
+  if (group.others.length === 0) return ""
+  return `
+
+# Handing off
+When the person's latest message belongs clearly more to another bot's job than to yours, don't answer it. Call handoff with that bot's id and a one-sentence reason, and stop; the person can then ask that bot. Answer it yourself when it fits your job, when it's a quick question any bot could answer, or when no other bot fits better. Hand off only to the bots listed above.`
 }
 
 // The conversation is saved to Trigger.dev's transcript storage, keyed by chatId
@@ -36,15 +137,29 @@ export const chatAgent = chat
   .withUIMessage<ChatUIMessage>()
   // The bot picked in the composer answers this turn; without one, the chat's
   // first bot does, which is the only bot in a direct chat
-  .withClientData({ schema: z.object({ botId: z.string().optional() }) })
+  .withClientData({ schema: clientDataSchema })
   .agent({
     id: "chat",
     storage: defaultStorage,
-    tools: ({ chatId, clientData }) => computerTools(chatId, clientData?.botId),
+    tools: async ({ chatId, clientData }): Promise<ChatTools> => {
+      const { bot, group } = await loadTurn(chatId, clientData)
+      const [other, ...rest] = group?.others ?? []
+      return {
+        ...computerTools(bot.id),
+        // Only a group chat with another bot in it has anyone to hand off to,
+        // and a message that was handed over must be answered, so handoffs
+        // can't bounce between bots
+        ...(other && !group?.handedOffBy && handoffTools([other, ...rest])),
+      }
+    },
     // Reload the bot every turn so edits to it apply mid-conversation
     onTurnStart: async ({ chatId, clientData }) => {
-      const { bot } = await findMember(chatId, clientData?.botId)
-      chat.prompt.set(systemPrompt(bot))
+      const turn = await loadTurn(chatId, clientData)
+      chat.prompt.set(systemPrompt(turn))
+      chat.setUIMessageStreamOptions({
+        messageMetadata: ({ part }) =>
+          part.type === "start" ? { botId: turn.bot.id } : undefined,
+      })
     },
     run: async ({ messages, tools, signal, streamText }) =>
       streamText({
@@ -52,7 +167,8 @@ export const chatAgent = chat
         messages,
         tools,
         abortSignal: signal,
-        // Desktop work takes a look and an action per step
-        stopWhen: isStepCount(50),
+        // Desktop work takes a look and an action per step. A handoff ends
+        // the turn, so the bot doesn't answer what it just passed on
+        stopWhen: [isStepCount(50), hasToolCall("handoff")],
       }),
   })
