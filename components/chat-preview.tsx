@@ -1,13 +1,13 @@
 import { formatDistanceToNowStrict } from "date-fns"
 
-import { ChatAvatar } from "@/components/chat-avatar"
+import { GroupChatAvatar } from "@/components/group-chat-avatar"
 import type { ChatListItem } from "@/queries/bot"
 
 function ChatPreview({ chat }: { chat: ChatListItem }) {
   return (
     <>
-      <ChatAvatar
-        seed={chat.avatar}
+      <GroupChatAvatar
+        seeds={chat.avatars}
         className="size-10 group-data-[collapsible=icon]:size-6"
       />
       <div className="grid min-w-0 flex-1 gap-0.5">

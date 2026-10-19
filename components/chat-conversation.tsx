@@ -25,6 +25,7 @@ import {
   TypeIcon,
   type LucideIcon,
 } from "lucide-react"
+import * as React from "react"
 import type { BundledLanguage } from "shiki"
 
 import {
@@ -49,11 +50,18 @@ import {
   PromptInput,
   PromptInputBody,
   PromptInputFooter,
+  PromptInputSelect,
+  PromptInputSelectContent,
+  PromptInputSelectItem,
+  PromptInputSelectTrigger,
+  PromptInputSelectValue,
   PromptInputSubmit,
   PromptInputTextarea,
+  PromptInputTools,
   type PromptInputMessage,
 } from "@/components/ai-elements/prompt-input"
 import { Terminal } from "@/components/ai-elements/terminal"
+import { ChatAvatar } from "@/components/chat-avatar"
 import {
   Tool,
   ToolContent,
@@ -67,12 +75,24 @@ type ChatMessage = InferChatUIMessage<typeof chatAgent>
 type ChatPart = ChatMessage["parts"][number]
 type ToolPart<Name extends string> = Extract<ChatPart, { type: `tool-${Name}` }>
 
-function ChatConversation({ chatId }: { chatId: string }) {
+type PickableBot = { id: string; name: string; avatar: string }
+
+function ChatConversation({
+  chatId,
+  bots,
+}: {
+  chatId: string
+  // The bots to pick from in a group chat; a direct chat has only its own
+  bots?: PickableBot[]
+}) {
+  const [botId, setBotId] = React.useState(bots?.[0]?.id)
   const transport = useTriggerChatTransport<typeof chatAgent>({
     task: "chat",
     accessToken: ({ chatId }) => mintChatAccessToken(chatId),
     startSession: ({ chatId, clientData }) =>
       startChatSession({ chatId, clientData }),
+    // Sent with every turn, so the agent answers as the picked bot
+    clientData: { botId },
   })
   const { messages, isLoading } = useLoadTranscript(chatId, loadTranscript, {
     transport,
@@ -92,6 +112,9 @@ function ChatConversation({ chatId }: { chatId: string }) {
       chatId={chatId}
       initialMessages={messages}
       transport={transport}
+      bots={bots}
+      botId={botId}
+      onBotChange={setBotId}
     />
   )
 }
@@ -100,10 +123,16 @@ function ChatMessages({
   chatId,
   initialMessages,
   transport,
+  bots,
+  botId,
+  onBotChange,
 }: {
   chatId: string
   initialMessages: UIMessage[]
   transport: TriggerChatTransport
+  bots?: PickableBot[]
+  botId?: string
+  onBotChange: (botId: string) => void
 }) {
   const { messages, sendMessage, status, stop } = useChat<ChatMessage>({
     id: chatId,
@@ -139,12 +168,63 @@ function ChatMessages({
           <PromptInputBody>
             <PromptInputTextarea />
           </PromptInputBody>
-          <PromptInputFooter className="justify-end">
+          <PromptInputFooter
+            className={bots ? "justify-between" : "justify-end"}
+          >
+            {bots && (
+              <PromptInputTools>
+                <BotPicker bots={bots} value={botId} onChange={onBotChange} />
+              </PromptInputTools>
+            )}
             <PromptInputSubmit status={status} onStop={stop} />
           </PromptInputFooter>
         </PromptInput>
       </div>
     </>
+  )
+}
+
+// Picks which bot in a group chat answers the next message
+function BotPicker({
+  bots,
+  value,
+  onChange,
+}: {
+  bots: PickableBot[]
+  value?: string
+  onChange: (botId: string) => void
+}) {
+  return (
+    <PromptInputSelect
+      value={value}
+      onValueChange={(value) => typeof value === "string" && onChange(value)}
+      items={bots.map((bot) => ({ value: bot.id, label: bot.name }))}
+    >
+      <PromptInputSelectTrigger size="sm" aria-label="Bot to talk to">
+        <PromptInputSelectValue>
+          {(id: string) => {
+            const bot = bots.find((bot) => bot.id === id)
+            return bot && <PickableBotLabel bot={bot} />
+          }}
+        </PromptInputSelectValue>
+      </PromptInputSelectTrigger>
+      <PromptInputSelectContent>
+        {bots.map((bot) => (
+          <PromptInputSelectItem key={bot.id} value={bot.id}>
+            <PickableBotLabel bot={bot} />
+          </PromptInputSelectItem>
+        ))}
+      </PromptInputSelectContent>
+    </PromptInputSelect>
+  )
+}
+
+function PickableBotLabel({ bot }: { bot: PickableBot }) {
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <ChatAvatar seed={bot.avatar} className="size-4" />
+      <span className="truncate">{bot.name}</span>
+    </span>
   )
 }
 

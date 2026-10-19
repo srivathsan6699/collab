@@ -5,9 +5,9 @@ import {
   type InferChatUIMessageFromTools,
 } from "@trigger.dev/sdk/ai"
 import { isStepCount } from "ai"
+import { z } from "zod"
 
-import { db } from "@/lib/db/client"
-import { computerTools, type ComputerTools } from "./tools"
+import { computerTools, findMember, type ComputerTools } from "./tools"
 
 export type ChatUIMessage = InferChatUIMessageFromTools<ComputerTools>
 
@@ -32,26 +32,27 @@ When you work the desktop, look before you act: call viewScreen to see the scree
 }
 
 // The conversation is saved to Trigger.dev's transcript storage, keyed by chatId
-export const chatAgent = chat.withUIMessage<ChatUIMessage>().agent({
-  id: "chat",
-  storage: defaultStorage,
-  tools: ({ chatId }) => computerTools(chatId),
-  // Reload the bot every turn so edits to it apply mid-conversation
-  onTurnStart: async ({ chatId }) => {
-    const member = await db.query.chatMembers.findFirst({
-      where: (m, { eq }) => eq(m.chatId, chatId),
-      with: { bot: { columns: { name: true, job: true, instructions: true } } },
-    })
-    if (!member) throw new Error(`No bot in chat ${chatId}`)
-    chat.prompt.set(systemPrompt(member.bot))
-  },
-  run: async ({ messages, tools, signal, streamText }) =>
-    streamText({
-      model: openai("gpt-6.1-sol"),
-      messages,
-      tools,
-      abortSignal: signal,
-      // Desktop work takes a look and an action per step
-      stopWhen: isStepCount(50),
-    }),
-})
+export const chatAgent = chat
+  .withUIMessage<ChatUIMessage>()
+  // The bot picked in the composer answers this turn; without one, the chat's
+  // first bot does, which is the only bot in a direct chat
+  .withClientData({ schema: z.object({ botId: z.string().optional() }) })
+  .agent({
+    id: "chat",
+    storage: defaultStorage,
+    tools: ({ chatId, clientData }) => computerTools(chatId, clientData?.botId),
+    // Reload the bot every turn so edits to it apply mid-conversation
+    onTurnStart: async ({ chatId, clientData }) => {
+      const { bot } = await findMember(chatId, clientData?.botId)
+      chat.prompt.set(systemPrompt(bot))
+    },
+    run: async ({ messages, tools, signal, streamText }) =>
+      streamText({
+        model: openai("gpt-6.1-sol"),
+        messages,
+        tools,
+        abortSignal: signal,
+        // Desktop work takes a look and an action per step
+        stopWhen: isStepCount(50),
+      }),
+  })

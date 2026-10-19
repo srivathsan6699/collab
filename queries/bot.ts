@@ -7,13 +7,13 @@ import { db } from "@/lib/db"
 export type ChatListItem = {
   id: string
   name: string
-  avatar: string
+  // Faces of the chat's bots, in the order they joined
+  avatars: string[]
   lastMessagePreview: string | null
   lastMessageAt: Date
 }
 
-// The signed-in user's chats, most recent first. Group chats show their
-// first bot until they get their own treatment.
+// The signed-in user's chats, most recent first
 export async function getChats(): Promise<ChatListItem[]> {
   const { userId } = await auth.protect()
 
@@ -29,7 +29,6 @@ export async function getChats(): Promise<ChatListItem[]> {
     with: {
       members: {
         orderBy: (members, { asc }) => asc(members.joinedAt),
-        limit: 1,
         with: { bot: { columns: { name: true, avatar: true } } },
       },
     },
@@ -38,6 +37,25 @@ export async function getChats(): Promise<ChatListItem[]> {
   return rows.flatMap(({ members, ...chat }) => {
     const bot = members[0]?.bot
     if (!bot) return []
-    return [{ ...chat, name: chat.name ?? bot.name, avatar: bot.avatar }]
+    return [
+      {
+        ...chat,
+        name: chat.name ?? bot.name,
+        avatars: members.map((member) => member.bot.avatar),
+      },
+    ]
+  })
+}
+
+export type BotListItem = { id: string; name: string; avatar: string }
+
+// The signed-in user's bots, oldest first, for picking group chat members
+export async function getBots(): Promise<BotListItem[]> {
+  const { userId } = await auth.protect()
+
+  return db.query.bots.findMany({
+    where: (bots, { eq }) => eq(bots.userId, userId),
+    orderBy: (bots, { asc }) => asc(bots.createdAt),
+    columns: { id: true, name: true, avatar: true },
   })
 }

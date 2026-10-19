@@ -19,19 +19,32 @@ export default async function Page(props: PageProps<"/chats/[chatId]">) {
   const chat = await getChat(chatId)
   if (!chat) notFound()
 
+  const conversation = (
+    <div className="flex h-full flex-col overflow-hidden">
+      <ChatHeader chat={chat} />
+      <ChatConversation
+        key={chatId}
+        chatId={chatId}
+        bots={chat.kind === "group" ? chat.bots : undefined}
+      />
+    </div>
+  )
+
+  // Group chats have several bots, so there's no one desktop to show
+  if (chat.kind === "group") {
+    return <div className="h-svh">{conversation}</div>
+  }
+
   return (
     <DesktopPanelProvider key={chatId} chatId={chatId}>
       <ResizablePanelGroup orientation="horizontal" className="h-svh">
         <ResizablePanel id="chat" minSize="30%">
-          <div className="flex h-full flex-col overflow-hidden">
-            <ChatHeader chat={chat} />
-            <ChatConversation key={chatId} chatId={chatId} />
-          </div>
+          {conversation}
         </ResizablePanel>
         <DesktopPanel>
           <ResizableHandle withHandle />
           <ResizablePanel id="desktop" defaultSize="40%" minSize="20%">
-            <DesktopPreview name={chat.bot.name} />
+            <DesktopPreview name={chat.bots[0].name} />
           </ResizablePanel>
         </DesktopPanel>
       </ResizablePanelGroup>

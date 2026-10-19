@@ -18,9 +18,12 @@ export async function getDesktopUrl(
   // getChat checks the signed-in user owns the chat
   const chat = await getChat(chatId)
   if (!chat) return { ok: false, error: "That chat no longer exists." }
+  // Group chats have several bots, so there's no one desktop to show
+  if (chat.kind !== "direct")
+    return { ok: false, error: "Group chats don't have a desktop." }
 
   const bot = await db.query.bots.findFirst({
-    where: (bots, { eq }) => eq(bots.id, chat.bot.id),
+    where: (bots, { eq }) => eq(bots.id, chat.bots[0].id),
     columns: { sandboxId: true },
   })
   if (!bot) return { ok: false, error: "That bot no longer exists." }

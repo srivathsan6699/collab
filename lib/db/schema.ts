@@ -9,7 +9,7 @@ import {
 } from "drizzle-orm/pg-core"
 import { createInsertSchema, createUpdateSchema } from "drizzle-zod"
 import { nanoid } from "nanoid"
-import type { z } from "zod"
+import { z } from "zod"
 
 export const bots = pgTable(
   "bots",
@@ -77,6 +77,18 @@ export const chats = pgTable(
   },
   (t) => [index("chats_user_id_idx").on(t.userId)]
 )
+
+// What a user can set when creating a group chat; the bots become its members
+export const insertGroupChatSchema = createInsertSchema(chats, {
+  name: (s) => s.trim().min(1, "Give the group a name.").max(50),
+})
+  .pick({ name: true })
+  .required({ name: true })
+  .extend({
+    botIds: z.array(z.string()).min(2, "Pick at least two bots."),
+  })
+
+export type InsertGroupChat = z.infer<typeof insertGroupChatSchema>
 
 export const chatMembers = pgTable(
   "chat_members",

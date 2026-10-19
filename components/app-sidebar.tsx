@@ -9,6 +9,7 @@ import { PlusIcon, UsersIcon } from "lucide-react"
 import { BotDialog } from "@/components/bot-dialog"
 import { ChatPreview } from "@/components/chat-preview"
 import { ChatSearch } from "@/components/chat-search"
+import { GroupChatDialog } from "@/components/group-chat-dialog"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -28,10 +29,17 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import type { ChatListItem } from "@/queries/bot"
+import type { BotListItem, ChatListItem } from "@/queries/bot"
 
-export function AppSidebar({ chats }: { chats: ChatListItem[] }) {
+export function AppSidebar({
+  chats,
+  bots,
+}: {
+  chats: ChatListItem[]
+  bots: BotListItem[]
+}) {
   const [botDialogOpen, setBotDialogOpen] = React.useState(false)
+  const [groupChatDialogOpen, setGroupChatDialogOpen] = React.useState(false)
   const pathname = usePathname()
   const contentRef = React.useRef<HTMLDivElement>(null)
 
@@ -56,7 +64,7 @@ export function AppSidebar({ chats }: { chats: ChatListItem[] }) {
                 <PlusIcon />
                 Create new bot
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setGroupChatDialogOpen(true)}>
                 <UsersIcon />
                 Create group chat
               </DropdownMenuItem>
@@ -65,6 +73,11 @@ export function AppSidebar({ chats }: { chats: ChatListItem[] }) {
         </div>
         <ChatSearch chats={chats} />
         <BotDialog open={botDialogOpen} onOpenChange={setBotDialogOpen} />
+        <GroupChatDialog
+          bots={bots}
+          open={groupChatDialogOpen}
+          onOpenChange={setGroupChatDialogOpen}
+        />
       </SidebarHeader>
       <SidebarContent ref={contentRef}>
         <SidebarGroup>
