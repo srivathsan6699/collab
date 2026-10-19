@@ -1,10 +1,12 @@
 import { BotDialog } from "@/components/bot-dialog"
 import { DesktopPanelTrigger } from "@/components/desktop-panel"
 import { GroupChatAvatar } from "@/components/group-chat-avatar"
+import { GroupChatDialog } from "@/components/group-chat-dialog"
 import { Button } from "@/components/ui/button"
+import type { BotListItem } from "@/queries/bot"
 import type { Chat } from "@/queries/chat"
 
-function ChatHeader({ chat }: { chat: Chat }) {
+function ChatHeader({ chat, bots }: { chat: Chat; bots: BotListItem[] }) {
   const title = (
     <>
       <GroupChatAvatar
@@ -14,24 +16,27 @@ function ChatHeader({ chat }: { chat: Chat }) {
       <span className="truncate">{chat.name}</span>
     </>
   )
+  const trigger = (
+    <Button variant="ghost" size="sm" className="max-w-full">
+      {title}
+    </Button>
+  )
 
   return (
     <header className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
       <h1 className="min-w-0 flex-1">
         {chat.kind === "direct" ? (
-          <BotDialog
-            bot={chat.bots[0]}
-            trigger={
-              <Button variant="ghost" size="sm" className="max-w-full">
-                {title}
-              </Button>
-            }
-          />
+          <BotDialog bot={chat.bots[0]} trigger={trigger} />
         ) : (
-          // Laid out like the button so the title doesn't shift between kinds
-          <div className="flex h-7 max-w-full items-center gap-1 px-2.5 text-[0.8rem] font-medium">
-            {title}
-          </div>
+          <GroupChatDialog
+            bots={bots}
+            chat={{
+              id: chat.id,
+              name: chat.name,
+              botIds: chat.bots.map((bot) => bot.id),
+            }}
+            trigger={trigger}
+          />
         )}
       </h1>
       {chat.kind === "direct" && <DesktopPanelTrigger />}

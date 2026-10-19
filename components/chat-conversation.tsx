@@ -89,7 +89,11 @@ function ChatConversation({
   // The bots to pick from in a group chat; a direct chat has only its own
   bots?: PickableBot[]
 }) {
-  const [botId, setBotId] = React.useState(bots?.[0]?.id)
+  const [pickedBotId, setBotId] = React.useState(bots?.[0]?.id)
+  // The picked bot may have been removed from the group since
+  const botId = bots?.some((bot) => bot.id === pickedBotId)
+    ? pickedBotId
+    : bots?.[0]?.id
   const transport = useTriggerChatTransport<typeof chatAgent>({
     task: "chat",
     accessToken: ({ chatId }) => mintChatAccessToken(chatId),

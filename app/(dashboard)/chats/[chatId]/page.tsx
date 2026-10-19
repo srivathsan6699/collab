@@ -12,16 +12,17 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
+import { getBots } from "@/queries/bot"
 import { getChat } from "@/queries/chat"
 
 export default async function Page(props: PageProps<"/chats/[chatId]">) {
   const { chatId } = await props.params
-  const chat = await getChat(chatId)
+  const [chat, bots] = await Promise.all([getChat(chatId), getBots()])
   if (!chat) notFound()
 
   const conversation = (
     <div className="flex h-full flex-col overflow-hidden">
-      <ChatHeader chat={chat} />
+      <ChatHeader chat={chat} bots={bots} />
       <ChatConversation
         key={chatId}
         chatId={chatId}

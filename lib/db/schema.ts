@@ -90,6 +90,18 @@ export const insertGroupChatSchema = createInsertSchema(chats, {
 
 export type InsertGroupChat = z.infer<typeof insertGroupChatSchema>
 
+// The same fields when editing a group chat; botIds replaces its members
+export const updateGroupChatSchema = createUpdateSchema(chats, {
+  name: (s) => s.trim().min(1, "Give the group a name.").max(50),
+})
+  .pick({ name: true })
+  .required({ name: true })
+  .extend({
+    botIds: z.array(z.string()).min(2, "Pick at least two bots."),
+  })
+
+export type UpdateGroupChat = z.infer<typeof updateGroupChatSchema>
+
 export const chatMembers = pgTable(
   "chat_members",
   {
