@@ -1,3 +1,5 @@
+import { sentryEsbuildPlugin } from "@sentry/esbuild-plugin";
+import { esbuildPlugin } from "@trigger.dev/build/extensions";
 import { defineConfig } from "@trigger.dev/sdk";
 
 export default defineConfig({
@@ -19,4 +21,18 @@ export default defineConfig({
     },
   },
   dirs: ["trigger"],
+  build: {
+    extensions: [
+      // Uploads source maps so Sentry shows original task code, on deploy only
+      esbuildPlugin(
+        sentryEsbuildPlugin({
+          org: "collab-13",
+          project: "collab",
+          authToken: process.env.SENTRY_AUTH_TOKEN,
+          telemetry: false,
+        }),
+        { placement: "last", target: "deploy" }
+      ),
+    ],
+  },
 });

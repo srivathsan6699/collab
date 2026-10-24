@@ -1,4 +1,5 @@
 import { openai } from "@ai-sdk/openai"
+import * as Sentry from "@sentry/node"
 import { chat, defaultStorage } from "@trigger.dev/sdk/ai"
 import {
   hasToolCall,
@@ -21,6 +22,11 @@ import {
 } from "@/lib/usage"
 import { handoffTools, type HandoffTools } from "./handoff"
 import { computerTools, type ComputerTools } from "./tools"
+
+const PRO_PLAN_MESSAGE = "Chatting with bots needs the Pro plan."
+
+// Turns that end on purpose, so they aren't reported to Sentry
+const EXPECTED_ERRORS = new Set([PRO_PLAN_MESSAGE, AI_LIMIT_MESSAGE])
 
 // Replies carry the bot that wrote them, so group chats can show its face
 export type ChatMessageMetadata = { botId?: string }
@@ -186,6 +192,17 @@ export const chatAgent = chat
           part.type === "start" ? { botId: turn.bot.id } : undefined,
       })
     },
+    // A failed turn doesn't fail the run, so the global onFailure hook never
+    // sees it; report it here instead
+    onTurnComplete: async ({ error, chatId, clientData, turn, runId }) => {
+      if (!error) return
+      if (error instanceof Error && EXPECTED_ERRORS.has(error.message)) return
+      Sentry.captureException(error, {
+        tags: { task: "chat", botId: clientData?.botId },
+        extra: { chatId, turn, runId },
+      })
+      await Sentry.flush(2000)
+    },
     run: async ({
       messages,
       tools,
@@ -198,7 +215,7 @@ export const chatAgent = chat
       // turn, and its message reaches the composer verbatim
       const { userId, bot } = await loadTurn(chatId, clientData)
       const usage = await getUsage(userId)
-      if (!usage) throw new Error("Chatting with bots needs the Pro plan.")
+      if (!usage) throw new Error(PRO_PLAN_MESSAGE)
       const remainingMicros = aiRemainingMicros(usage)
       if (remainingMicros <= 0) throw new Error(AI_LIMIT_MESSAGE)
 
