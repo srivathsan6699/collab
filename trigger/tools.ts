@@ -2,8 +2,10 @@ import type { Sandbox } from "@daytona/sdk"
 import { tool } from "ai"
 import { z } from "zod"
 
+import { SANDBOX_LIMIT_MESSAGE } from "@/lib/billing"
 import { daytona, startDesktop } from "@/lib/daytona/client"
 import { db } from "@/lib/db/client"
+import { getUsage, sandboxRemainingSeconds } from "@/lib/usage"
 
 const HOME = "/home/daytona"
 // Keep long command output and files from flooding the model's context
@@ -16,13 +18,16 @@ function truncate(text: string) {
 }
 
 // The sandbox of the bot answering this turn, started if it was stopped
-// while idle
+// while idle. Its owner's plan pays for the running time, so it stays shut
+// once this period's sandbox time is used up
 async function connect(botId: string) {
   const bot = await db.query.bots.findFirst({
     where: (bots, { eq }) => eq(bots.id, botId),
-    columns: { sandboxId: true },
+    columns: { sandboxId: true, userId: true },
   })
   if (!bot) throw new Error(`No bot ${botId}`)
+  if (sandboxRemainingSeconds(await getUsage(bot.userId)) <= 0)
+    throw new Error(SANDBOX_LIMIT_MESSAGE)
 
   const sandbox = await daytona.get(bot.sandboxId)
   if (sandbox.state !== "started") await sandbox.start()

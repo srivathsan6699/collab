@@ -7,7 +7,12 @@ import { and, eq, inArray } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { z } from "zod"
 
-import { BOT_FEATURES, UPGRADE_REQUIRED } from "@/lib/billing"
+import {
+  BOT_FEATURES,
+  SANDBOX_LIMIT_MESSAGE,
+  UPGRADE_REQUIRED,
+  USAGE_LIMIT_REACHED,
+} from "@/lib/billing"
 import { daytona, MEMORY_PATH } from "@/lib/daytona"
 import { db } from "@/lib/db"
 import {
@@ -19,13 +24,14 @@ import {
   type InsertBot,
   type UpdateBot,
 } from "@/lib/db/schema"
+import { getUsage, sandboxRemainingSeconds } from "@/lib/usage"
 
 type CreateBotResult =
   | { ok: true; id: string }
   | {
       ok: false
       error: string
-      code?: typeof UPGRADE_REQUIRED
+      code?: typeof UPGRADE_REQUIRED | typeof USAGE_LIMIT_REACHED
       fieldErrors?: Partial<Record<keyof InsertBot, string[]>>
     }
 
@@ -39,6 +45,13 @@ export async function createBot(input: InsertBot): Promise<CreateBotResult> {
       ok: false,
       error: "Creating bots needs the Pro plan.",
       code: UPGRADE_REQUIRED,
+    }
+  // Its sandbox starts running right away, on this period's sandbox time
+  if (sandboxRemainingSeconds(await getUsage(userId)) <= 0)
+    return {
+      ok: false,
+      error: SANDBOX_LIMIT_MESSAGE,
+      code: USAGE_LIMIT_REACHED,
     }
 
   const parsed = insertBotSchema.safeParse(input)

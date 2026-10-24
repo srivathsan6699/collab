@@ -26,6 +26,22 @@ function useUpgrade() {
     })
   }
 
+  // For a plan that has the feature but has used up this period's allowance
+  function showUsageLimitToast(title: string, description: string) {
+    const id = toast.add({
+      type: "error",
+      title,
+      description,
+      actionProps: {
+        children: "View usage",
+        onClick: () => {
+          toast.close(id)
+          router.push("/usage")
+        },
+      },
+    })
+  }
+
   // True when the user's plan has every feature; otherwise shows the toast.
   // Before Clerk loads there's nothing to check, so the server decides
   function requireFeatures(features: Feature[], title: string) {
@@ -34,7 +50,7 @@ function useUpgrade() {
     return false
   }
 
-  return { requireFeatures, showUpgradeToast }
+  return { requireFeatures, showUpgradeToast, showUsageLimitToast }
 }
 
 export { useUpgrade }

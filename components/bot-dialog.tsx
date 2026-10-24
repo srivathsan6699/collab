@@ -45,7 +45,11 @@ import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
 import { useUpgrade } from "@/components/upgrade-toast"
-import { BOT_FEATURES, UPGRADE_REQUIRED } from "@/lib/billing"
+import {
+  BOT_FEATURES,
+  UPGRADE_REQUIRED,
+  USAGE_LIMIT_REACHED,
+} from "@/lib/billing"
 import {
   insertBotSchema,
   updateBotSchema,
@@ -136,7 +140,7 @@ function BotForm({ bot, onSaved }: { bot?: EditableBot; onSaved: () => void }) {
   const avatar = useWatch({ control: form.control, name: "avatar" })
   const name = useWatch({ control: form.control, name: "name" }).trim()
   const { isSubmitting } = form.formState
-  const { showUpgradeToast } = useUpgrade()
+  const { showUpgradeToast, showUsageLimitToast } = useUpgrade()
 
   async function onSubmit(values: InsertBot) {
     const result = bot
@@ -145,6 +149,10 @@ function BotForm({ bot, onSaved }: { bot?: EditableBot; onSaved: () => void }) {
 
     if (!result.ok && "code" in result && result.code === UPGRADE_REQUIRED) {
       showUpgradeToast("Couldn't create bot")
+      return
+    }
+    if (!result.ok && "code" in result && result.code === USAGE_LIMIT_REACHED) {
+      showUsageLimitToast("Couldn't create bot", result.error)
       return
     }
     if (!result.ok) {

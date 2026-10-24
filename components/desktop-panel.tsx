@@ -23,7 +23,11 @@ import {
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
 import { useUpgrade } from "@/components/upgrade-toast"
-import { SANDBOX_FEATURES, UPGRADE_REQUIRED } from "@/lib/billing"
+import {
+  SANDBOX_FEATURES,
+  UPGRADE_REQUIRED,
+  USAGE_LIMIT_REACHED,
+} from "@/lib/billing"
 
 type Desktop =
   | { status: "idle" }
@@ -79,7 +83,8 @@ function DesktopPanelProvider({
   const [panelSlot, setPanelSlot] = useState<HTMLElement | null>(null)
   const [dialogSlot, setDialogSlot] = useState<HTMLElement | null>(null)
 
-  const { requireFeatures, showUpgradeToast } = useUpgrade()
+  const { requireFeatures, showUpgradeToast, showUsageLimitToast } =
+    useUpgrade()
 
   async function connect() {
     if (!requireFeatures(SANDBOX_FEATURES, "Can't open desktop")) {
@@ -91,6 +96,8 @@ function DesktopPanelProvider({
       const result = await getDesktopUrl(chatId)
       if (!result.ok && result.code === UPGRADE_REQUIRED)
         showUpgradeToast("Can't open desktop")
+      if (!result.ok && result.code === USAGE_LIMIT_REACHED)
+        showUsageLimitToast("Can't open desktop", result.error)
       setAccepted(readAccepted())
       setDesktop(
         result.ok

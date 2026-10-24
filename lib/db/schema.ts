@@ -1,6 +1,8 @@
 import { relations } from "drizzle-orm"
 import {
   index,
+  integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -119,6 +121,33 @@ export const chatMembers = pgTable(
     primaryKey({ columns: [t.chatId, t.botId] }),
     index("chat_members_bot_id_idx").on(t.botId),
   ]
+)
+
+export const usageKind = pgEnum("usage_kind", ["ai", "sandbox"])
+
+// The usage ledger: one row per charge against a user's plan allowance.
+// Rows are only ever inserted; usage in a period is the sum of its rows
+export const usageEvents = pgTable(
+  "usage_events",
+  {
+    // Deterministic where a charge could be recorded twice, like a sandbox
+    // meter tick that retries, so the insert can skip duplicates
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    userId: text("user_id").notNull(), // Clerk user ID
+    kind: usageKind("kind").notNull(),
+    // Tokens for ai, running seconds for sandbox
+    quantity: integer("quantity").notNull(),
+    // What it cost us, in millionths of a dollar
+    costMicros: integer("cost_micros").notNull(),
+    // Where it came from: the chat, bot, sandbox, and the token breakdown
+    details: jsonb("details").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("usage_events_user_period_idx").on(t.userId, t.createdAt)]
 )
 
 export const botsRelations = relations(bots, ({ many }) => ({

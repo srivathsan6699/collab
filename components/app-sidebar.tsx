@@ -2,9 +2,9 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { UserButton } from "@clerk/nextjs"
-import { PlusIcon, UsersIcon } from "lucide-react"
+import { GaugeIcon, PlusIcon, UsersIcon } from "lucide-react"
 
 import { BotDialog } from "@/components/bot-dialog"
 import { ChatPreview } from "@/components/chat-preview"
@@ -43,6 +43,7 @@ export function AppSidebar({
   const [botDialogOpen, setBotDialogOpen] = React.useState(false)
   const [groupChatDialogOpen, setGroupChatDialogOpen] = React.useState(false)
   const pathname = usePathname()
+  const router = useRouter()
   const { requireFeatures } = useUpgrade()
   const contentRef = React.useRef<HTMLDivElement>(null)
 
@@ -127,7 +128,16 @@ export function AppSidebar({
                         "truncate ps-0 text-sm font-medium text-inherit",
                     },
                   }}
-                />
+                >
+                  {/* The usage page isn't in the sidebar; this is its way in */}
+                  <UserButton.MenuItems>
+                    <UserButton.Action
+                      label="Usage"
+                      labelIcon={<GaugeIcon className="size-4" />}
+                      onClick={() => router.push("/usage")}
+                    />
+                  </UserButton.MenuItems>
+                </UserButton>
               )}
             />
           </SidebarMenuItem>

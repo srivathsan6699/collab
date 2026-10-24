@@ -9,8 +9,16 @@ import {
 } from "ai"
 import { z } from "zod"
 
+import { AI_LIMIT_MESSAGE } from "@/lib/billing"
 import { MEMORY_PATH } from "@/lib/daytona/client"
 import { db } from "@/lib/db/client"
+import {
+  aiCostMicros,
+  aiRemainingMicros,
+  CHAT_MODEL,
+  getUsage,
+  recordAiUsage,
+} from "@/lib/usage"
 import { handoffTools, type HandoffTools } from "./handoff"
 import { computerTools, type ComputerTools } from "./tools"
 
@@ -34,6 +42,8 @@ type Bot = {
 }
 
 type Turn = {
+  // The person who owns the chat, whose plan pays for the turn
+  userId: string
   bot: Bot
   // Set in a group chat: its name, the bots other than the one answering, and
   // the bot that handed this message over, if one did
@@ -59,7 +69,7 @@ async function loadTurn(
 ): Promise<Turn> {
   const row = await db.query.chats.findFirst({
     where: (chats, { eq }) => eq(chats.id, chatId),
-    columns: { kind: true, name: true },
+    columns: { userId: true, kind: true, name: true },
     with: {
       members: {
         orderBy: (members, { asc }) => asc(members.joinedAt),
@@ -75,8 +85,9 @@ async function loadTurn(
   const bot = botId ? bots.find((bot) => bot.id === botId) : bots[0]
   if (!row || !bot) throw new Error(`No bot ${botId ?? ""} in chat ${chatId}`)
 
-  if (row.kind !== "group") return { bot }
+  if (row.kind !== "group") return { userId: row.userId, bot }
   return {
+    userId: row.userId,
     bot,
     group: {
       name: row.name ?? "Group chat",
@@ -175,14 +186,49 @@ export const chatAgent = chat
           part.type === "start" ? { botId: turn.bot.id } : undefined,
       })
     },
-    run: async ({ messages, tools, signal, streamText }) =>
-      streamText({
-        model: openai("gpt-6.1-sol"),
+    run: async ({
+      messages,
+      tools,
+      signal,
+      streamText,
+      chatId,
+      clientData,
+    }) => {
+      // The owner's plan pays for the turn. A thrown error ends just this
+      // turn, and its message reaches the composer verbatim
+      const { userId, bot } = await loadTurn(chatId, clientData)
+      const usage = await getUsage(userId)
+      if (!usage) throw new Error("Chatting with bots needs the Pro plan.")
+      const remainingMicros = aiRemainingMicros(usage)
+      if (remainingMicros <= 0) throw new Error(AI_LIMIT_MESSAGE)
+
+      return streamText({
+        model: openai(CHAT_MODEL),
         messages,
         tools,
         abortSignal: signal,
         // Desktop work takes a look and an action per step. A handoff ends
-        // the turn, so the bot doesn't answer what it just passed on
-        stopWhen: [isStepCount(50), hasToolCall("handoff")],
-      }),
+        // the turn, so the bot doesn't answer what it just passed on. A
+        // turn also ends once it has spent what was left of the allowance,
+        // so one long turn can't run far past it
+        stopWhen: [
+          isStepCount(50),
+          hasToolCall("handoff"),
+          ({ steps }) =>
+            steps.reduce(
+              (spent, step) => spent + aiCostMicros(step.usage),
+              0
+            ) >= remainingMicros,
+        ],
+        // Charge each model call as it ends, so a turn that's stopped or
+        // fails partway is still charged for the calls it made
+        onStepEnd: async ({ usage }) => {
+          try {
+            await recordAiUsage(userId, usage, { chatId, botId: bot.id })
+          } catch (error) {
+            console.error(`Failed to record AI usage for ${userId}`, error)
+          }
+        },
+      })
+    },
   })

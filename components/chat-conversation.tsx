@@ -75,7 +75,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { useUpgrade } from "@/components/upgrade-toast"
-import { BOT_FEATURES } from "@/lib/billing"
+import { AI_LIMIT_MESSAGE, BOT_FEATURES } from "@/lib/billing"
 
 type ChatMessage = InferChatUIMessage<typeof chatAgent>
 type ChatPart = ChatMessage["parts"][number]
@@ -144,15 +144,20 @@ function ChatMessages({
   botId?: string
   onBotChange: (botId: string) => void
 }) {
+  const { requireFeatures, showUsageLimitToast } = useUpgrade()
   const { messages, sendMessage, regenerate, status, stop } =
     useChat<ChatMessage>({
       id: chatId,
       // The transcript holds what the agent streamed, so it has the agent's parts
       messages: initialMessages as ChatMessage[],
       transport,
+      // The agent refuses a turn once the AI allowance is used up, with
+      // this exact message
+      onError: (error) => {
+        if (error.message === AI_LIMIT_MESSAGE)
+          showUsageLimitToast("Can't send message", AI_LIMIT_MESSAGE)
+      },
     })
-
-  const { requireFeatures } = useUpgrade()
 
   function handleSubmit({ text }: PromptInputMessage) {
     if (!text.trim()) return
