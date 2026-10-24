@@ -1,6 +1,7 @@
 "use server"
 
 import { auth as clerkAuth } from "@clerk/nextjs/server"
+import * as Sentry from "@sentry/nextjs"
 import { auth } from "@trigger.dev/sdk"
 import {
   chat,
@@ -23,9 +24,14 @@ async function assertChatOwner(chatId: string) {
 // token, so starting a session and minting its token are where chatting is
 // gated. The composer checks the plan first and shows the upgrade toast
 async function assertCanChat() {
-  const { has } = await clerkAuth()
-  if (!BOT_FEATURES.every((feature) => has({ feature })))
+  const { has, userId } = await clerkAuth()
+  if (!BOT_FEATURES.every((feature) => has({ feature }))) {
+    Sentry.logger.info("Chat blocked", {
+      userId: userId ?? "",
+      reason: UPGRADE_REQUIRED,
+    })
     throw new Error(UPGRADE_REQUIRED)
+  }
 }
 
 const start = chat.createStartSessionAction<typeof chatAgent>("chat")
@@ -35,6 +41,7 @@ export async function startChatSession(
 ) {
   await assertChatOwner(params.chatId)
   await assertCanChat()
+  Sentry.logger.info("Chat session started", { chatId: params.chatId })
   return start(params)
 }
 

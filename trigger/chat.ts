@@ -194,13 +194,38 @@ export const chatAgent = chat
     },
     // A failed turn doesn't fail the run, so the global onFailure hook never
     // sees it; report it here instead
-    onTurnComplete: async ({ error, chatId, clientData, turn, runId }) => {
-      if (!error) return
-      if (error instanceof Error && EXPECTED_ERRORS.has(error.message)) return
-      Sentry.captureException(error, {
-        tags: { task: "chat", botId: clientData?.botId },
-        extra: { chatId, turn, runId },
-      })
+    onTurnComplete: async ({
+      error,
+      chatId,
+      clientData,
+      turn,
+      runId,
+      stopped,
+      finishReason,
+      totalUsage,
+    }) => {
+      const expected =
+        error instanceof Error && EXPECTED_ERRORS.has(error.message)
+      // One log per turn, so a conversation can be followed in Sentry
+      Sentry.logger[error && !expected ? "error" : "info"](
+        "Chat turn completed",
+        {
+          chatId,
+          runId,
+          turn,
+          botId: clientData?.botId ?? "",
+          status: error ? "errored" : stopped ? "stopped" : "ok",
+          finishReason: finishReason ?? "",
+          inputTokens: totalUsage.inputTokens ?? 0,
+          outputTokens: totalUsage.outputTokens ?? 0,
+          ...(error instanceof Error && { error: error.message }),
+        }
+      )
+      if (error && !expected)
+        Sentry.captureException(error, {
+          tags: { task: "chat", botId: clientData?.botId },
+          extra: { chatId, turn, runId },
+        })
       await Sentry.flush(2000)
     },
     run: async ({

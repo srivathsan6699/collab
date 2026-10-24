@@ -1,6 +1,7 @@
 "use server"
 
 import { auth } from "@clerk/nextjs/server"
+import * as Sentry from "@sentry/nextjs"
 import { revalidatePath } from "next/cache"
 import { and, eq, inArray, notInArray } from "drizzle-orm"
 import { z } from "zod"
@@ -62,6 +63,11 @@ export async function createGroupChat(
   })
   if (!chat) return { ok: false, error: "Some of those bots no longer exist." }
 
+  Sentry.logger.info("Group chat created", {
+    chatId: chat.id,
+    userId,
+    botCount: unique.length,
+  })
   revalidatePath("/", "layout")
   return { ok: true, id: chat.id }
 }
@@ -135,6 +141,11 @@ export async function updateGroupChat(
   if (result === "bots")
     return { ok: false, error: "Some of those bots no longer exist." }
 
+  Sentry.logger.info("Group chat updated", {
+    chatId,
+    userId,
+    botCount: unique.length,
+  })
   // The name and faces show in the sidebar and the chat's header
   revalidatePath("/", "layout")
   return { ok: true }
@@ -162,6 +173,7 @@ export async function deleteGroupChat(
     .returning({ id: chats.id })
   if (!chat) return { ok: false, error: "That group chat no longer exists." }
 
+  Sentry.logger.info("Group chat deleted", { chatId, userId })
   revalidatePath("/", "layout")
   return { ok: true }
 }

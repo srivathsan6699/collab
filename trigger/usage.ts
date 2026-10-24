@@ -1,4 +1,5 @@
 import { SandboxState, type Sandbox } from "@daytona/sdk"
+import * as Sentry from "@sentry/node"
 import { logger, schedules } from "@trigger.dev/sdk"
 
 import { daytona } from "@/lib/daytona/client"
@@ -54,6 +55,10 @@ export const meterSandboxes = schedules.task({
         // Without the plan there's no telling whether time is left, so the
         // sandboxes keep running until the next run can check
         logger.error(`Couldn't read the usage of ${userId}`, { error })
+        Sentry.logger.error("Couldn't read usage", {
+          userId,
+          error: String(error),
+        })
         continue
       }
       if (sandboxRemainingSeconds(usage) > 0) continue
@@ -63,15 +68,26 @@ export const meterSandboxes = schedules.task({
       )
       results.forEach((result, i) => {
         if (result.status === "fulfilled") stopped++
-        else
+        else {
           logger.error(`Couldn't stop sandbox ${sandboxes[i].id}`, {
             error: result.reason,
           })
+          Sentry.logger.error("Couldn't stop sandbox", {
+            userId,
+            sandboxId: sandboxes[i].id,
+            error: String(result.reason),
+          })
+        }
       })
     }
 
     const metered = [...owned.values()].flat().length
     logger.info("Metered sandboxes", { users: owned.size, metered, stopped })
+    Sentry.logger.info("Metered sandboxes", {
+      users: owned.size,
+      metered,
+      stopped,
+    })
     return { users: owned.size, metered, stopped }
   },
 })

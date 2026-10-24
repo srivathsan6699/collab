@@ -1,6 +1,7 @@
 "use server"
 
 import { auth } from "@clerk/nextjs/server"
+import * as Sentry from "@sentry/nextjs"
 
 import {
   SANDBOX_FEATURES,
@@ -37,12 +38,18 @@ export async function getDesktopUrl(
       code: UPGRADE_REQUIRED,
     }
   // Opening the desktop starts the sandbox, on this period's sandbox time
-  if (sandboxRemainingSeconds(await getUsage(userId)) <= 0)
+  if (sandboxRemainingSeconds(await getUsage(userId)) <= 0) {
+    Sentry.logger.info("Desktop blocked", {
+      chatId,
+      userId,
+      reason: USAGE_LIMIT_REACHED,
+    })
     return {
       ok: false,
       error: SANDBOX_LIMIT_MESSAGE,
       code: USAGE_LIMIT_REACHED,
     }
+  }
 
   // getChat checks the signed-in user owns the chat
   const chat = await getChat(chatId)
@@ -58,12 +65,21 @@ export async function getDesktopUrl(
   if (!bot) return { ok: false, error: "That bot no longer exists." }
 
   try {
+    const started = Date.now()
     const sandbox = await daytona.get(bot.sandboxId)
-    if (sandbox.state !== "started") await sandbox.start()
+    const wasStopped = sandbox.state !== "started"
+    if (wasStopped) await sandbox.start()
     await startDesktop(sandbox)
     const { url } = await sandbox.getSignedPreviewUrl(VNC_PORT, 3600)
     const vnc = new URL("/vnc.html", url)
     vnc.search = "autoconnect=true&reconnect=true&resize=scale"
+    Sentry.logger.info("Desktop opened", {
+      chatId,
+      userId,
+      sandboxId: bot.sandboxId,
+      wasStopped,
+      durationMs: Date.now() - started,
+    })
     return { ok: true, url: vnc.toString() }
   } catch (error) {
     console.error(

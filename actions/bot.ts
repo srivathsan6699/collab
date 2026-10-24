@@ -1,6 +1,7 @@
 "use server"
 
 import { auth } from "@clerk/nextjs/server"
+import * as Sentry from "@sentry/nextjs"
 import { revalidatePath } from "next/cache"
 import type { Sandbox } from "@daytona/sdk"
 import { and, eq, inArray } from "drizzle-orm"
@@ -40,19 +41,29 @@ export async function createBot(input: InsertBot): Promise<CreateBotResult> {
   if (!isAuthenticated)
     return { ok: false, error: "You need to sign in first." }
   // A new bot comes with its own sandbox, so it needs both features
-  if (!BOT_FEATURES.every((feature) => has({ feature })))
+  if (!BOT_FEATURES.every((feature) => has({ feature }))) {
+    Sentry.logger.info("Bot creation blocked", {
+      userId,
+      reason: UPGRADE_REQUIRED,
+    })
     return {
       ok: false,
       error: "Creating bots needs the Pro plan.",
       code: UPGRADE_REQUIRED,
     }
+  }
   // Its sandbox starts running right away, on this period's sandbox time
-  if (sandboxRemainingSeconds(await getUsage(userId)) <= 0)
+  if (sandboxRemainingSeconds(await getUsage(userId)) <= 0) {
+    Sentry.logger.info("Bot creation blocked", {
+      userId,
+      reason: USAGE_LIMIT_REACHED,
+    })
     return {
       ok: false,
       error: SANDBOX_LIMIT_MESSAGE,
       code: USAGE_LIMIT_REACHED,
     }
+  }
 
   const parsed = insertBotSchema.safeParse(input)
   if (!parsed.success) {
@@ -109,6 +120,11 @@ export async function createBot(input: InsertBot): Promise<CreateBotResult> {
     throw error
   }
 
+  Sentry.logger.info("Bot created", {
+    botId: bot.id,
+    userId,
+    sandboxId: sandbox.id,
+  })
   revalidatePath("/")
   return { ok: true, id: bot.id }
 }
@@ -195,6 +211,12 @@ export async function deleteBot(botId: string): Promise<DeleteBotResult> {
     console.error(`Failed to delete sandbox ${sandboxId}`, error)
   }
 
+  Sentry.logger.info("Bot deleted", {
+    botId,
+    userId,
+    sandboxId,
+    chatsDeleted: chatIds.length,
+  })
   revalidatePath("/", "layout")
   return { ok: true, chatIds }
 }
