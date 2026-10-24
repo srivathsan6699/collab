@@ -74,6 +74,8 @@ import {
 } from "@/components/ai-elements/tool"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
+import { useUpgrade } from "@/components/upgrade-toast"
+import { BOT_FEATURES } from "@/lib/billing"
 
 type ChatMessage = InferChatUIMessage<typeof chatAgent>
 type ChatPart = ChatMessage["parts"][number]
@@ -150,8 +152,11 @@ function ChatMessages({
       transport,
     })
 
+  const { requireFeatures } = useUpgrade()
+
   function handleSubmit({ text }: PromptInputMessage) {
     if (!text.trim()) return
+    if (!requireFeatures(BOT_FEATURES, "Can't send message")) return
     // The message remembers which bot it was for, so a group chat can show it
     sendMessage({ text, metadata: { botId } })
   }
@@ -160,6 +165,7 @@ function ChatMessages({
   // place. The transport's clientData only catches up on the next render,
   // so the bot goes with the request too, along with who handed it over
   function handOff(message: ChatMessage, botId: string) {
+    if (!requireFeatures(BOT_FEATURES, "Can't hand off message")) return
     onBotChange(botId)
     regenerate({
       messageId: message.id,

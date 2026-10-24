@@ -44,6 +44,8 @@ import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
+import { useUpgrade } from "@/components/upgrade-toast"
+import { BOT_FEATURES, UPGRADE_REQUIRED } from "@/lib/billing"
 import {
   insertBotSchema,
   updateBotSchema,
@@ -90,9 +92,18 @@ function BotDialog({
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false)
   const open = openProp ?? uncontrolledOpen
   const setOpen = onOpenChange ?? setUncontrolledOpen
+  const { requireFeatures } = useUpgrade()
 
   return (
-    <Dialog open={open} onOpenChange={(open) => setOpen(open)}>
+    <Dialog
+      open={open}
+      onOpenChange={(open) => {
+        // Editing is free; a new bot needs a plan that includes bots
+        if (open && !bot && !requireFeatures(BOT_FEATURES, "Can't create bot"))
+          return
+        setOpen(open)
+      }}
+    >
       {trigger && <DialogTrigger render={trigger} />}
       <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
@@ -110,13 +121,7 @@ function BotDialog({
   )
 }
 
-function BotForm({
-  bot,
-  onSaved,
-}: {
-  bot?: EditableBot
-  onSaved: () => void
-}) {
+function BotForm({ bot, onSaved }: { bot?: EditableBot; onSaved: () => void }) {
   const form = useForm<InsertBot>({
     resolver: zodResolver(bot ? updateBotSchema : insertBotSchema),
     defaultValues: bot
@@ -131,12 +136,17 @@ function BotForm({
   const avatar = useWatch({ control: form.control, name: "avatar" })
   const name = useWatch({ control: form.control, name: "name" }).trim()
   const { isSubmitting } = form.formState
+  const { showUpgradeToast } = useUpgrade()
 
   async function onSubmit(values: InsertBot) {
     const result = bot
       ? await updateBot(bot.id, values)
       : await createBot(values)
 
+    if (!result.ok && "code" in result && result.code === UPGRADE_REQUIRED) {
+      showUpgradeToast("Couldn't create bot")
+      return
+    }
     if (!result.ok) {
       for (const [name, messages] of Object.entries(result.fieldErrors ?? {})) {
         form.setError(name as keyof InsertBot, { message: messages?.[0] })
@@ -267,11 +277,7 @@ function BotForm({
         <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
         <Button type="submit" form="bot-form" disabled={isSubmitting}>
           {isSubmitting && <Spinner data-icon="inline-start" />}
-          {bot
-            ? "Save changes"
-            : name
-              ? `Bring ${name} to life`
-              : "Create bot"}
+          {bot ? "Save changes" : name ? `Bring ${name} to life` : "Create bot"}
         </Button>
       </DialogFooter>
     </>
@@ -325,8 +331,7 @@ function DeleteBotButton({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete {bot.name}?</AlertDialogTitle>
           <AlertDialogDescription>
-            This deletes the bot and its direct chats. You can&apos;t undo
-            this.
+            This deletes the bot and its direct chats. You can&apos;t undo this.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

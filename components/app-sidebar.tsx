@@ -29,6 +29,8 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
+import { useUpgrade } from "@/components/upgrade-toast"
+import { BOT_FEATURES } from "@/lib/billing"
 import type { BotListItem, ChatListItem } from "@/queries/bot"
 
 export function AppSidebar({
@@ -41,6 +43,7 @@ export function AppSidebar({
   const [botDialogOpen, setBotDialogOpen] = React.useState(false)
   const [groupChatDialogOpen, setGroupChatDialogOpen] = React.useState(false)
   const pathname = usePathname()
+  const { requireFeatures } = useUpgrade()
   const contentRef = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
@@ -60,7 +63,12 @@ export function AppSidebar({
               <PlusIcon />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-auto">
-              <DropdownMenuItem onClick={() => setBotDialogOpen(true)}>
+              <DropdownMenuItem
+                onClick={() => {
+                  if (requireFeatures(BOT_FEATURES, "Can't create bot"))
+                    setBotDialogOpen(true)
+                }}
+              >
                 <PlusIcon />
                 Create new bot
               </DropdownMenuItem>

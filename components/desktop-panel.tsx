@@ -1,8 +1,15 @@
 "use client"
 
 import { cn } from "cn"
-import { MonitorIcon, RefreshCwIcon } from "lucide-react"
-import { createContext, useContext, useEffect, useRef, useState } from "react"
+import { MonitorIcon, RefreshCwIcon, ShieldAlertIcon } from "lucide-react"
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react"
 import { createPortal } from "react-dom"
 
 import { getDesktopUrl } from "@/actions/desktop"
@@ -15,6 +22,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
+import { useUpgrade } from "@/components/upgrade-toast"
+import { SANDBOX_FEATURES, UPGRADE_REQUIRED } from "@/lib/billing"
 
 type Desktop =
   | { status: "idle" }
@@ -22,11 +31,27 @@ type Desktop =
   | { status: "ready"; url: string }
   | { status: "error"; error: string }
 
+// Daytona puts a warning page in front of every preview link, and each link
+// is new, so it would show inside the small preview on every connect. The
+// panel shows that notice itself instead, once per browser, and accepts
+// Daytona's page for the person when the viewer loads
+const ACCEPTED_KEY = "desktop-preview-warning-accepted"
+
+function readAccepted() {
+  try {
+    return localStorage.getItem(ACCEPTED_KEY) === "true"
+  } catch {
+    return false
+  }
+}
+
 const DesktopPanelContext = createContext<{
   open: boolean
   toggle: () => void
   desktop: Desktop
   connect: () => Promise<void>
+  accepted: boolean
+  accept: () => void
   setPanelSlot: (slot: HTMLElement | null) => void
   setDialogSlot: (slot: HTMLElement | null) => void
 } | null>(null)
@@ -48,14 +73,25 @@ function DesktopPanelProvider({
 }) {
   const [open, setOpen] = useState(false)
   const [desktop, setDesktop] = useState<Desktop>({ status: "idle" })
+  // Read on connect, not on render, since the server has no localStorage
+  const [accepted, setAccepted] = useState(false)
   // Where the viewer currently shows: the panel's preview or the dialog
   const [panelSlot, setPanelSlot] = useState<HTMLElement | null>(null)
   const [dialogSlot, setDialogSlot] = useState<HTMLElement | null>(null)
 
+  const { requireFeatures, showUpgradeToast } = useUpgrade()
+
   async function connect() {
+    if (!requireFeatures(SANDBOX_FEATURES, "Can't open desktop")) {
+      setDesktop({ status: "error", error: "The desktop needs the Pro plan." })
+      return
+    }
     setDesktop({ status: "loading" })
     try {
       const result = await getDesktopUrl(chatId)
+      if (!result.ok && result.code === UPGRADE_REQUIRED)
+        showUpgradeToast("Can't open desktop")
+      setAccepted(readAccepted())
       setDesktop(
         result.ok
           ? { status: "ready", url: result.url }
@@ -72,12 +108,30 @@ function DesktopPanelProvider({
     if (desktop.status === "idle") void connect()
   }
 
+  function accept() {
+    try {
+      localStorage.setItem(ACCEPTED_KEY, "true")
+    } catch {
+      // Without storage the notice just shows again next time
+    }
+    setAccepted(true)
+  }
+
   return (
     <DesktopPanelContext
-      value={{ open, toggle, desktop, connect, setPanelSlot, setDialogSlot }}
+      value={{
+        open,
+        toggle,
+        desktop,
+        connect,
+        accepted,
+        accept,
+        setPanelSlot,
+        setDialogSlot,
+      }}
     >
       {children}
-      {desktop.status === "ready" && (
+      {desktop.status === "ready" && accepted && (
         <DesktopViewer
           url={desktop.url}
           slot={dialogSlot ?? (open ? panelSlot : null)}
@@ -101,6 +155,19 @@ function DesktopViewer({
   interactive: boolean
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+  const frameName = useId()
+  // Daytona's own "I understand" button posts here. It remembers the choice
+  // for this link and redirects to the desktop. If the browser blocks that
+  // cookie in an iframe, the viewer falls back to showing Daytona's page
+  const acceptUrl = new URL("/accept-daytona-preview-warning", url)
+  acceptUrl.searchParams.set("redirect", url)
+
+  // Each new link loads by accepting first. A new link is a new form action,
+  // so this runs once per connect
+  useEffect(() => {
+    formRef.current?.submit()
+  }, [url])
 
   useEffect(() => {
     const viewer = ref.current
@@ -137,8 +204,15 @@ function DesktopViewer({
         interactive ? "z-51" : "pointer-events-none"
       )}
     >
+      <form
+        ref={formRef}
+        method="post"
+        action={acceptUrl.toString()}
+        target={frameName}
+        hidden
+      />
       <iframe
-        src={url}
+        name={frameName}
         title="Desktop"
         allow="clipboard-read; clipboard-write"
         className="size-full border-0"
@@ -194,10 +268,40 @@ function DesktopPanel({ children }: { children: React.ReactNode }) {
   return open ? children : null
 }
 
+// Stands in for the screen until the person accepts, so the warning is
+// readable in the panel instead of shrunk inside the preview
+function DesktopNotice({ name }: { name: string }) {
+  const { accept } = useDesktopPanel()
+
+  return (
+    <div className="flex w-full flex-col items-center gap-3 rounded-xl border bg-card p-6 text-center">
+      <ShieldAlertIcon className="size-8 text-amber-500" aria-hidden="true" />
+      <div className="flex flex-col gap-1.5">
+        <h3 className="font-medium">Before you open {name}&apos;s screen</h3>
+        <p className="text-sm text-balance text-muted-foreground">
+          The desktop is streamed from {name}&apos;s sandbox through Daytona,
+          the service that runs it. Be careful typing passwords, card numbers or
+          other personal details into it.
+        </p>
+      </div>
+      <Button onClick={accept}>I understand, continue</Button>
+    </div>
+  )
+}
+
 function DesktopPreview({ name }: { name: string }) {
-  const { desktop, connect, setPanelSlot, setDialogSlot } = useDesktopPanel()
+  const { desktop, accepted, connect, setPanelSlot, setDialogSlot } =
+    useDesktopPanel()
   const [fullscreen, setFullscreen] = useState(false)
   const title = `${name}'s screen`
+
+  if (desktop.status === "ready" && !accepted) {
+    return (
+      <div className="flex h-full flex-col gap-3 p-3">
+        <DesktopNotice name={name} />
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full flex-col gap-3 p-3">

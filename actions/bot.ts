@@ -7,6 +7,7 @@ import { and, eq, inArray } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { z } from "zod"
 
+import { BOT_FEATURES, UPGRADE_REQUIRED } from "@/lib/billing"
 import { daytona, MEMORY_PATH } from "@/lib/daytona"
 import { db } from "@/lib/db"
 import {
@@ -24,13 +25,21 @@ type CreateBotResult =
   | {
       ok: false
       error: string
+      code?: typeof UPGRADE_REQUIRED
       fieldErrors?: Partial<Record<keyof InsertBot, string[]>>
     }
 
 export async function createBot(input: InsertBot): Promise<CreateBotResult> {
-  const { isAuthenticated, userId } = await auth()
+  const { isAuthenticated, userId, has } = await auth()
   if (!isAuthenticated)
     return { ok: false, error: "You need to sign in first." }
+  // A new bot comes with its own sandbox, so it needs both features
+  if (!BOT_FEATURES.every((feature) => has({ feature })))
+    return {
+      ok: false,
+      error: "Creating bots needs the Pro plan.",
+      code: UPGRADE_REQUIRED,
+    }
 
   const parsed = insertBotSchema.safeParse(input)
   if (!parsed.success) {

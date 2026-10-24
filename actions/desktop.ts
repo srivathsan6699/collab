@@ -1,5 +1,8 @@
 "use server"
 
+import { auth } from "@clerk/nextjs/server"
+
+import { SANDBOX_FEATURES, UPGRADE_REQUIRED } from "@/lib/billing"
 import { daytona, startDesktop } from "@/lib/daytona"
 import { db } from "@/lib/db"
 import { getChat } from "@/queries/chat"
@@ -8,13 +11,22 @@ import { getChat } from "@/queries/chat"
 const VNC_PORT = 6080
 
 type GetDesktopUrlResult =
-  { ok: true; url: string } | { ok: false; error: string }
+  | { ok: true; url: string }
+  | { ok: false; error: string; code?: typeof UPGRADE_REQUIRED }
 
 // A signed noVNC link to the desktop of the bot in this chat, starting its
 // sandbox and desktop first if they were stopped
 export async function getDesktopUrl(
   chatId: string
 ): Promise<GetDesktopUrlResult> {
+  const { has } = await auth()
+  if (!SANDBOX_FEATURES.every((feature) => has({ feature })))
+    return {
+      ok: false,
+      error: "The desktop needs the Pro plan.",
+      code: UPGRADE_REQUIRED,
+    }
+
   // getChat checks the signed-in user owns the chat
   const chat = await getChat(chatId)
   if (!chat) return { ok: false, error: "That chat no longer exists." }
