@@ -1,4 +1,5 @@
 import type { NextConfig } from "next"
+import { withSentryConfig } from "@sentry/nextjs/config"
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -10,4 +11,18 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+export default withSentryConfig(nextConfig, {
+  org: "collab-13",
+  project: "collab",
+
+  // Source map upload token, set in the build environment
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+
+  // Upload a wider set of client source files for better stack traces
+  widenClientFileUpload: true,
+
+  // Proxy browser events through the app to get past ad-blockers
+  tunnelRoute: "/monitoring",
+
+  silent: !process.env.CI,
+})
