@@ -47,7 +47,8 @@ function ThemeHotkey() {
         return
       }
 
-      if (event.key.toLowerCase() !== "d") {
+      // Browser autofill fires keydown events with no key (COLLAB-7)
+      if (event.key?.toLowerCase() !== "d") {
         return
       }
 

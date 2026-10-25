@@ -8,6 +8,8 @@ Each bot gets its own cloud computer with a desktop, terminal and browser. Give 
 
 [**Live demo →**](https://collab-production-ea30.up.railway.app)
 
+<sub>🔒 Access is by waitlist for now. Click <b>Try Collab</b> on the site to request access.</sub>
+
 ![Next.js](https://img.shields.io/badge/Next.js_16-000?logo=nextdotjs&logoColor=white)
 ![React](https://img.shields.io/badge/React_19-20232a?logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
