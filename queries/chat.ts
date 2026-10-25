@@ -1,6 +1,7 @@
 import "server-only"
 
 import { auth } from "@clerk/nextjs/server"
+import { cache } from "react"
 
 import { db } from "@/lib/db"
 
@@ -22,7 +23,10 @@ export type Chat = {
 
 // One of the signed-in user's chats, or null if it doesn't exist, belongs to
 // someone else, or has no bots left
-export async function getChat(chatId: string): Promise<Chat | null> {
+// Cached per request, so a page and its title share one query
+export const getChat = cache(async function getChat(
+  chatId: string
+): Promise<Chat | null> {
   const { userId } = await auth.protect()
 
   const chat = await db.query.chats.findFirst({
@@ -56,4 +60,4 @@ export async function getChat(chatId: string): Promise<Chat | null> {
     name: chat.name ?? bots[0].name,
     bots,
   }
-}
+})

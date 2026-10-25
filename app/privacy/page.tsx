@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 
 export const metadata: Metadata = {
-  title: "Privacy — Collab",
+  title: "Privacy",
   description: "What Collab collects, why, and who it's shared with.",
 }
 

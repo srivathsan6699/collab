@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { auth } from "@clerk/nextjs/server"
 import { GaugeIcon } from "lucide-react"
 import Link from "next/link"
@@ -21,6 +22,8 @@ import {
 } from "@/components/ui/empty"
 import { Progress, ProgressLabel } from "@/components/ui/progress"
 import { getUsage } from "@/lib/usage"
+
+export const metadata: Metadata = { title: "Usage" }
 
 const tokenFormat = new Intl.NumberFormat("en", { notation: "compact" })
 

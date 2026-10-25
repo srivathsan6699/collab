@@ -1,5 +1,8 @@
+import type { Metadata } from "next"
 import { auth } from "@clerk/nextjs/server"
 import { PricingTable } from "@clerk/nextjs"
+
+export const metadata: Metadata = { title: "Pricing" }
 
 export default async function Page() {
   await auth.protect()

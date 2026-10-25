@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { WaitlistButton } from "@/components/waitlist-button"
 
 export const metadata: Metadata = {
-  title: "Collab — Your AI teammates",
+  title: { absolute: "Collab — Your AI teammates" },
   description:
     "Hand your work to AI bots that act like teammates. They research, write, browse and get it done while you get on with your day.",
 }

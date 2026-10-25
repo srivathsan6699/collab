@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { auth } from "@clerk/nextjs/server"
 import { PlusIcon } from "lucide-react"
 
@@ -12,6 +13,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+
+export const metadata: Metadata = { title: "Chats" }
 
 export default async function Page() {
   await auth.protect()

@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
 import { ChatConversation } from "@/components/chat-conversation"
@@ -14,6 +15,14 @@ import {
 } from "@/components/ui/resizable"
 import { getBots } from "@/queries/bot"
 import { getChat } from "@/queries/chat"
+
+export async function generateMetadata(
+  props: PageProps<"/chats/[chatId]">
+): Promise<Metadata> {
+  const { chatId } = await props.params
+  const chat = await getChat(chatId)
+  return { title: chat?.name ?? "Chat" }
+}
 
 export default async function Page(props: PageProps<"/chats/[chatId]">) {
   const { chatId } = await props.params
