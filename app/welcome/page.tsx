@@ -6,6 +6,7 @@ import { ArrowRightIcon } from "lucide-react"
 import { BotScene } from "@/components/bot-scene"
 import { HelloBot } from "@/components/hello-bot"
 import { Button } from "@/components/ui/button"
+import { WaitlistButton } from "@/components/waitlist-button"
 
 export const metadata: Metadata = {
   title: "Collab — Your AI teammates",
@@ -51,12 +52,15 @@ export default function WelcomePage() {
             It opens a browser, does the work and reports back, like a teammate
             would.
           </p>
-          <SignInButton mode="modal" appearance={centeredModal}>
-            <Button size="lg" className="mt-2 h-11 rounded-full px-6 text-base">
-              Try Collab
-              <ArrowRightIcon data-icon="inline-end" />
-            </Button>
-          </SignInButton>
+          {/* Sign-ups are waitlist only, so new visitors ask for access */}
+          <WaitlistButton
+            appearance={centeredModal}
+            size="lg"
+            className="mt-2 h-11 rounded-full px-6 text-base"
+          >
+            Try Collab
+            <ArrowRightIcon data-icon="inline-end" />
+          </WaitlistButton>
         </section>
 
         <section
