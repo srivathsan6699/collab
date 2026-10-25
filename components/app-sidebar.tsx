@@ -56,7 +56,13 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          <Link
+            href="/"
+            className="ps-2 font-heading text-lg font-semibold tracking-tight group-data-[collapsible=icon]:hidden"
+          >
+            Collab
+          </Link>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={<Button variant="ghost" size="icon" aria-label="New" />}
@@ -126,6 +132,9 @@ export function AppSidebar({
                       userButtonAvatarBox: "size-8 rounded-lg",
                       userButtonOuterIdentifier:
                         "truncate ps-0 text-sm font-medium text-inherit",
+                      // Clerk's default card is wider than the sidebar; keep it inside
+                      userButtonPopoverCard:
+                        "w-[calc(var(--sidebar-width,16rem)-1rem)]! min-w-0! max-w-none!",
                     },
                   }}
                 >

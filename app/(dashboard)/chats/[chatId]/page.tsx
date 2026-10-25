@@ -38,17 +38,21 @@ export default async function Page(props: PageProps<"/chats/[chatId]">) {
 
   return (
     <DesktopPanelProvider key={chatId} chatId={chatId}>
-      <ResizablePanelGroup orientation="horizontal" className="h-svh">
-        <ResizablePanel id="chat" minSize="30%">
-          {conversation}
-        </ResizablePanel>
-        <DesktopPanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel id="desktop" defaultSize="40%" minSize="20%">
-            <DesktopPreview name={chat.bots[0].name} />
+      {/* The group's inline height: 100% beats a height class, so the
+          wrapper caps it at the screen and only the messages scroll */}
+      <div className="h-svh">
+        <ResizablePanelGroup orientation="horizontal">
+          <ResizablePanel id="chat" minSize="30%">
+            {conversation}
           </ResizablePanel>
-        </DesktopPanel>
-      </ResizablePanelGroup>
+          <DesktopPanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel id="desktop" defaultSize="40%" minSize="20%">
+              <DesktopPreview name={chat.bots[0].name} />
+            </ResizablePanel>
+          </DesktopPanel>
+        </ResizablePanelGroup>
+      </div>
     </DesktopPanelProvider>
   )
 }

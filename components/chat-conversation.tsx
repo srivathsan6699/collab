@@ -11,24 +11,25 @@ import {
   ArrowDownUpIcon,
   ArrowRightLeftIcon,
   CircleAlertIcon,
+  CodeIcon,
   EyeIcon,
-  FileIcon,
   FilePenIcon,
   FileTextIcon,
-  FolderIcon,
   FolderOpenIcon,
+  GlobeIcon,
   KeyboardIcon,
   MonitorIcon,
   MouseIcon,
   MousePointerClickIcon,
   MoveIcon,
-  SquareTerminalIcon,
+  PackageIcon,
+  SearchIcon,
   TypeIcon,
+  WrenchIcon,
   type LucideIcon,
 } from "lucide-react"
 import * as React from "react"
 import { cn } from "cn"
-import type { BundledLanguage } from "shiki"
 
 import {
   loadTranscript,
@@ -42,7 +43,6 @@ import {
   ConversationContent,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation"
-import { CodeBlock } from "@/components/ai-elements/code-block"
 import {
   Message,
   MessageContent,
@@ -62,16 +62,9 @@ import {
   PromptInputTools,
   type PromptInputMessage,
 } from "@/components/ai-elements/prompt-input"
-import { Terminal } from "@/components/ai-elements/terminal"
 import { ChatAvatar } from "@/components/chat-avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Tool,
-  ToolContent,
-  ToolHeader,
-  ToolOutput,
-} from "@/components/ai-elements/tool"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { useUpgrade } from "@/components/upgrade-toast"
@@ -431,116 +424,98 @@ function ComputerStep({
         <Icon className="mt-0.5 size-4 shrink-0" />
       )}
       <div className="min-w-0">
-        <p className="truncate">{label}</p>
+        <p className={cn("truncate", running && "animate-pulse")}>{label}</p>
         {failed && <p className="text-destructive">{part.errorText}</p>}
       </div>
     </div>
   )
 }
 
+// What the bot did, said plainly. The command itself is an implementation
+// detail, so it's only read to pick the wording
+const bashSteps: [RegExp, LucideIcon, string, string][] = [
+  [
+    /chrom|firefox|xdg-open/,
+    GlobeIcon,
+    "Opening the browser",
+    "Opened the browser",
+  ],
+  [
+    /curl|wget|requests|https?:\/\//,
+    SearchIcon,
+    "Looking things up online",
+    "Looked things up online",
+  ],
+  [
+    /\b(pip|npm|apt(-get)?|brew)\b.*\binstall\b/,
+    PackageIcon,
+    "Getting tools ready",
+    "Got tools ready",
+  ],
+  [/\b(python3?|node)\b/, CodeIcon, "Running some code", "Ran some code"],
+]
+
 function BashTool({ part }: { part: ToolPart<"bash"> }) {
   const command = part.input?.command ?? ""
-  const output =
-    part.state === "output-available"
-      ? `$ ${command}\n${part.output.output}${part.output.exitCode === 0 ? "" : `\n\x1b[31mexit code ${part.output.exitCode}\x1b[0m`}`
-      : `$ ${command}`
-  return (
-    <Tool defaultOpen={part.state === "output-error"}>
-      <ToolHeader
-        icon={<SquareTerminalIcon className="size-4 text-muted-foreground" />}
-        state={part.state}
-        title={command || "Running a command"}
-        type={part.type}
-        className="[&_span]:font-mono"
-      />
-      <ToolContent>
-        <Terminal
-          isStreaming={part.state === "input-available"}
-          output={output}
-        />
-        <ToolOutput errorText={part.errorText} output={undefined} />
-      </ToolContent>
-    </Tool>
-  )
+  const [, icon, running, done] = bashSteps.find(([pattern]) =>
+    pattern.test(command)
+  ) ?? [, WrenchIcon, "Working on it", "Worked on a step"]
+  return <TaskStep icon={icon} running={running} done={done} part={part} />
 }
 
 function ReadFileTool({ part }: { part: ToolPart<"readFile"> }) {
-  const path = part.input?.path ?? ""
   return (
-    <Tool defaultOpen={part.state === "output-error"}>
-      <ToolHeader
-        icon={<FileTextIcon className="size-4 text-muted-foreground" />}
-        state={part.state}
-        title={`Read ${path}`}
-        type={part.type}
-      />
-      <ToolContent>
-        {part.state === "output-available" && (
-          <CodeBlock code={part.output.content} language={languageOf(path)} />
-        )}
-        <ToolOutput errorText={part.errorText} output={undefined} />
-      </ToolContent>
-    </Tool>
+    <TaskStep
+      icon={FileTextIcon}
+      running="Reading a file"
+      done="Read a file"
+      part={part}
+    />
   )
 }
 
 function WriteFileTool({ part }: { part: ToolPart<"writeFile"> }) {
-  const path = part.input?.path ?? ""
   return (
-    <Tool defaultOpen={part.state === "output-error"}>
-      <ToolHeader
-        icon={<FilePenIcon className="size-4 text-muted-foreground" />}
-        state={part.state}
-        title={`Wrote ${path}`}
-        type={part.type}
-      />
-      <ToolContent>
-        <CodeBlock
-          code={part.input?.content ?? ""}
-          language={languageOf(path)}
-        />
-        <ToolOutput errorText={part.errorText} output={undefined} />
-      </ToolContent>
-    </Tool>
+    <TaskStep
+      icon={FilePenIcon}
+      running="Saving a file"
+      done="Saved a file"
+      part={part}
+    />
   )
 }
 
 function ListFilesTool({ part }: { part: ToolPart<"listFiles"> }) {
   return (
-    <Tool defaultOpen={part.state === "output-error"}>
-      <ToolHeader
-        icon={<FolderOpenIcon className="size-4 text-muted-foreground" />}
-        state={part.state}
-        title={`Listed ${part.input?.path ?? "files"}`}
-        type={part.type}
-      />
-      <ToolContent>
-        {part.state === "output-available" &&
-          (part.output.files.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Empty folder</p>
-          ) : (
-            <ul className="space-y-1 font-mono text-xs">
-              {part.output.files.map((file) => (
-                <li className="flex items-center gap-2" key={file.name}>
-                  {file.isDir ? (
-                    <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                  ) : (
-                    <FileIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                  )}
-                  <span className="truncate">{file.name}</span>
-                  {!file.isDir && (
-                    <span className="ml-auto shrink-0 text-muted-foreground">
-                      {formatBytes(file.size)}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ))}
-        <ToolOutput errorText={part.errorText} output={undefined} />
-      </ToolContent>
-    </Tool>
+    <TaskStep
+      icon={FolderOpenIcon}
+      running="Looking through files"
+      done="Looked through files"
+      part={part}
+    />
   )
+}
+
+// A behind-the-scenes step, worded for people rather than showing its
+// commands, output or raw errors
+function TaskStep({
+  icon,
+  running,
+  done,
+  part,
+}: {
+  icon: LucideIcon
+  running: string
+  done: string
+  part: Pick<ToolPart<string>, "state">
+}) {
+  const label =
+    part.state === "output-error" || part.state === "output-denied"
+      ? "Hit a snag, trying another way"
+      : part.state === "output-available"
+        ? done
+        : `${running}…`
+  return <ComputerStep icon={icon} label={label} part={{ state: part.state }} />
 }
 
 function HandoffTool({
@@ -602,35 +577,6 @@ function ShowScreenTool({ part }: { part: ToolPart<"showScreen"> }) {
       width={width}
     />
   )
-}
-
-const languages: Record<string, BundledLanguage> = {
-  css: "css",
-  go: "go",
-  html: "html",
-  js: "javascript",
-  json: "json",
-  jsx: "jsx",
-  md: "markdown",
-  py: "python",
-  rs: "rust",
-  sh: "bash",
-  sql: "sql",
-  toml: "toml",
-  ts: "typescript",
-  tsx: "tsx",
-  yaml: "yaml",
-  yml: "yaml",
-}
-
-function languageOf(path: string): BundledLanguage {
-  return languages[path.split(".").pop()?.toLowerCase() ?? ""] ?? "log"
-}
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
 export { ChatConversation }
