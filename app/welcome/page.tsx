@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { SignInButton } from "@clerk/nextjs"
+import Link from "next/link"
 import { ArrowRightIcon } from "lucide-react"
 
 import { BotScene } from "@/components/bot-scene"
@@ -66,8 +67,11 @@ export default function WelcomePage() {
         </section>
       </main>
 
-      <footer className="px-4 py-6 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} Collab
+      <footer className="flex justify-center gap-4 px-4 py-6 text-xs text-muted-foreground">
+        <span>© {new Date().getFullYear()} Collab</span>
+        <Link href="/privacy" className="hover:text-foreground">
+          Privacy
+        </Link>
       </footer>
     </div>
   )

@@ -8,14 +8,12 @@ Sentry.init({
   // 100% in dev, 10% in production
   tracesSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.1,
 
-  // Session Replay: 10% of all sessions, 100% of sessions with errors
-  replaysSessionSampleRate: 0.1,
-  replaysOnErrorSampleRate: 1.0,
+  // No Session Replay: recording visits isn't needed for the site to work, so
+  // it would need visitors' consent. Errors, traces and logs are enough
 
   // Sentry.logger calls are sent as logs by default; this adds console
   // warnings and errors
   integrations: [
-    Sentry.replayIntegration(),
     Sentry.consoleLoggingIntegration({ levels: ["warn", "error"] }),
   ],
 })
