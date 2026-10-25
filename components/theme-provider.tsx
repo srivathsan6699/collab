@@ -47,12 +47,12 @@ function ThemeHotkey() {
         return
       }
 
-      // Browser autofill fires keydown events with no key (COLLAB-7)
-      if (event.key?.toLowerCase() !== "d") {
+      if (isTypingTarget(event.target)) {
         return
       }
 
-      if (isTypingTarget(event.target)) {
+      // Browser autofill can dispatch keydown events without a key (COLLAB-7)
+      if (typeof event.key !== "string" || event.key.toLowerCase() !== "d") {
         return
       }
 
